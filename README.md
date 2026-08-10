@@ -1,28 +1,60 @@
 # ShreeRam CRM
 
-Real Estate Lead Management CRM for multi-platform use (Android, iOS, Web).
+Real Estate Lead Management CRM (Android / iOS / Web).
 
-## Stack (planned)
+## Stack
 
-- **Frontend:** Flutter (Android / iOS / Web)
-- **Backend:** Laravel REST API (modular monolith)
+- **Frontend:** Flutter (`mobile/`)
+- **Backend:** Laravel REST API (`backend/`)
 - **Database:** MySQL
 
-## Status
+## Demo URL
 
-Architecture phase complete. **No application implementation until architecture approval.**
+https://aweliontech.com/shreeram-crm
 
-See the full technical plan:
+## Quick links
 
-→ [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- Architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
+- Deployment (VPS isolation): [`docs/DEPLOYMENT.md`](docs/DEPLOYMENT.md)
+- Env template: [`.env.example`](.env.example) and `backend/.env.example`
 
-## Environment
+## Local backend
 
-Documented variables (no secrets): [`.env.example`](.env.example)
+```bash
+cd backend
+composer install
+cp .env.example .env
+php artisan key:generate
+# configure DB, then:
+php artisan migrate --seed
+php artisan serve
+```
 
-Never commit `.env` files, Meta tokens, API keys, or database passwords.
+API base: `http://127.0.0.1:8000/api/v1`
 
-## VPS safety
+Seeded logins (change after first deploy):
 
-This app must be deployed in an **isolated** project directory/database/vhost only.  
-Do not modify other projects on the shared demo VPS.
+- OWNER `owner@shreeram.local` / `ChangeMeOwner1!`
+- ADMIN `admin@shreeram.local` / `ChangeMeAdmin1!`
+- SALES `sales@shreeram.local` / `ChangeMeSales1!`
+
+## Flutter
+
+```bash
+cd mobile
+flutter pub get
+flutter run \
+  --dart-define=API_BASE_URL=http://127.0.0.1:8000/api/v1
+```
+
+Web build for demo path:
+
+```bash
+flutter build web --base-href /shreeram-crm/ \
+  --dart-define=API_BASE_URL=https://aweliontech.com/shreeram-crm/api/v1
+```
+
+## Security
+
+Never commit `.env`, Meta tokens, or `.env.local.db`.  
+Meta credentials stay server-side only.
