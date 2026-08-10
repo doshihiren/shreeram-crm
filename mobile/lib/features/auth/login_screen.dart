@@ -99,6 +99,8 @@ class _BrandPanel extends StatelessWidget {
             'From Meta Lead Ads to site visit — one pipeline, clear ownership, zero clutter.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
+          const SizedBox(height: 14),
+          const StatusPill(label: 'UI build 2026-08-10-C'),
         ],
       ),
     );
