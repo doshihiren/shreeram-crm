@@ -24,23 +24,42 @@ git pull
 cd /var/www/shreeram-crm/backend
 composer install --no-dev --optimize-autoloader
 
-cp .env.example .env
-# Merge DB values from /var/www/shreeram-crm/.env.local.db into .env
-# Set:
-#   APP_NAME=ShreeRamCRM
-#   APP_URL=https://aweliontech.com/shreeram-crm
-#   ASSET_URL=https://aweliontech.com/shreeram-crm
-#   DB_CONNECTION=mysql
-#   DB_HOST=127.0.0.1
-#   DB_PORT=3306
-#   DB_DATABASE=shreeram_crm
-#   DB_USERNAME=shreeram_crm_user
-#   DB_PASSWORD=...
-#   SESSION_DRIVER=file
-#   CACHE_STORE=file
-#   QUEUE_CONNECTION=sync
+cp -n .env.example .env
 
-php artisan key:generate
+# IMPORTANT: DB_PASSWORD must be set (error "using password: NO" means it is empty).
+# Load from the local secrets file created earlier:
+set -a
+source /var/www/shreeram-crm/.env.local.db
+set +a
+
+# Write/merge into .env (edit with nano if you prefer)
+grep -q '^DB_CONNECTION=' .env && sed -i 's/^DB_CONNECTION=.*/DB_CONNECTION=mysql/' .env || echo 'DB_CONNECTION=mysql' >> .env
+sed -i "s/^DB_HOST=.*/DB_HOST=127.0.0.1/" .env || true
+sed -i "s/^# DB_HOST=.*/DB_HOST=127.0.0.1/" .env || true
+sed -i "s/^DB_PORT=.*/DB_PORT=3306/" .env || true
+sed -i "s/^# DB_PORT=.*/DB_PORT=3306/" .env || true
+sed -i "s/^DB_DATABASE=.*/DB_DATABASE=${DB_DATABASE}/" .env
+sed -i "s/^# DB_DATABASE=.*/DB_DATABASE=${DB_DATABASE}/" .env
+sed -i "s/^DB_USERNAME=.*/DB_USERNAME=${DB_USERNAME}/" .env
+sed -i "s/^# DB_USERNAME=.*/DB_USERNAME=${DB_USERNAME}/" .env
+# Ensure password line exists and is set
+grep -q '^DB_PASSWORD=' .env || echo 'DB_PASSWORD=' >> .env
+sed -i "s/^DB_PASSWORD=.*/DB_PASSWORD=${DB_PASSWORD}/" .env
+
+# Demo URL
+sed -i 's|^APP_URL=.*|APP_URL=https://aweliontech.com/shreeram-crm|' .env
+grep -q '^ASSET_URL=' .env || echo 'ASSET_URL=https://aweliontech.com/shreeram-crm' >> .env
+sed -i 's|^ASSET_URL=.*|ASSET_URL=https://aweliontech.com/shreeram-crm|' .env
+sed -i 's/^SESSION_DRIVER=.*/SESSION_DRIVER=file/' .env
+sed -i 's/^CACHE_STORE=.*/CACHE_STORE=file/' .env
+sed -i 's/^QUEUE_CONNECTION=.*/QUEUE_CONNECTION=sync/' .env
+sed -i 's/^APP_ENV=.*/APP_ENV=production/' .env
+sed -i 's/^APP_DEBUG=.*/APP_DEBUG=false/' .env
+
+# Verify password is present (should print YES)
+php -r "require 'vendor/autoload.php'; \$d=file('.env'); foreach(\$d as \$l){ if(str_starts_with(trim(\$l),'DB_PASSWORD=')){ echo (strlen(trim(substr(trim(\$l),12)))?'YES':'NO'), PHP_EOL; } }"
+
+php artisan key:generate --force
 php artisan migrate --force
 php artisan db:seed --force
 php artisan config:cache
@@ -58,16 +77,24 @@ Default seeded users (change immediately after first login):
 | ADMIN | admin@shreeram.local | ChangeMeAdmin1! |
 | SALES | sales@shreeram.local | ChangeMeSales1! |
 
-## 3) Flutter web build (on a machine with Flutter, or on VPS if installed)
+## 3) Flutter web (no Flutter install needed on VPS)
+
+Prebuilt web assets ship in `deploy/web-dist/` (API pointed at this demo path).
+
+```bash
+mkdir -p /var/www/shreeram-crm/backend/public/app
+rm -rf /var/www/shreeram-crm/backend/public/app/*
+cp -a /var/www/shreeram-crm/deploy/web-dist/. /var/www/shreeram-crm/backend/public/app/
+```
+
+Optional (only if you want to rebuild on a Flutter machine):
 
 ```bash
 cd /var/www/shreeram-crm/mobile
 flutter pub get
 flutter build web --base-href /shreeram-crm/ \
   --dart-define=API_BASE_URL=https://aweliontech.com/shreeram-crm/api/v1
-
-mkdir -p /var/www/shreeram-crm/backend/public/app
-rsync -a --delete build/web/ /var/www/shreeram-crm/backend/public/app/
+cp -a build/web/. /var/www/shreeram-crm/backend/public/app/
 ```
 
 ## 4) Nginx path routing (careful)
