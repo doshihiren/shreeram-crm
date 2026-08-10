@@ -1,3 +1,4 @@
+import 'package:dio/dio.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -91,7 +92,16 @@ class _MetaConnectionScreenState extends ConsumerState<MetaConnectionScreen> {
       ref.invalidate(metaConnectionProvider);
       setState(() => _message = 'Meta connection saved. Complete webhook subscription in Meta Developer Console.');
     } catch (e) {
-      setState(() => _message = 'Could not save connection. Check fields and try again.');
+      var detail = 'Could not save connection. Check fields and try again.';
+      if (e is DioException) {
+        final status = e.response?.statusCode;
+        final data = e.response?.data;
+        final serverMsg = data is Map
+            ? (data['message']?.toString() ?? data['errors']?.toString())
+            : data?.toString();
+        detail = 'Save failed (${status ?? 'network'}): ${serverMsg ?? e.message}';
+      }
+      setState(() => _message = detail);
     } finally {
       setState(() => _saving = false);
     }

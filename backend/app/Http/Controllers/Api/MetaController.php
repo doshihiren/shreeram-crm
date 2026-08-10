@@ -56,35 +56,49 @@ class MetaController extends Controller
 
         $data = $request->validate([
             'app_id' => ['nullable', 'string', 'max:255'],
-            'app_secret' => ['nullable', 'string', 'max:500'],
+            'app_secret' => ['nullable', 'string', 'max:2000'],
             'page_id' => ['nullable', 'string', 'max:255'],
             'page_name' => ['nullable', 'string', 'max:255'],
-            'page_access_token' => ['nullable', 'string'],
+            'page_access_token' => ['nullable', 'string', 'max:5000'],
             'webhook_verify_token' => ['nullable', 'string', 'max:255'],
             'status' => ['nullable', 'string', 'max:32'],
         ]);
 
-        $connection = MetaConnection::query()->latest('id')->first() ?? new MetaConnection();
-        $connection->fill([
-            'app_id' => $data['app_id'] ?? $connection->app_id,
-            'page_id' => $data['page_id'] ?? $connection->page_id,
-            'page_name' => $data['page_name'] ?? $connection->page_name,
-            'status' => $data['status'] ?? 'connected',
-            'connected_at' => now(),
-            'updated_by' => $request->user()->id,
-        ]);
-
-        if (! empty($data['app_secret'])) {
-            $connection->app_secret = $data['app_secret'];
-        }
-        if (! empty($data['page_access_token'])) {
-            $connection->page_access_token = $data['page_access_token'];
-        }
-        if (! empty($data['webhook_verify_token'])) {
-            $connection->webhook_verify_token_hash = Hash::make($data['webhook_verify_token']);
+        if (! filled(config('app.key'))) {
+            return response()->json([
+                'message' => 'APP_KEY is missing on server. Run php artisan key:generate in backend/.env',
+            ], 500);
         }
 
-        $connection->save();
+        try {
+            $connection = MetaConnection::query()->latest('id')->first() ?? new MetaConnection();
+            $connection->fill([
+                'app_id' => $data['app_id'] ?? $connection->app_id,
+                'page_id' => $data['page_id'] ?? $connection->page_id,
+                'page_name' => $data['page_name'] ?? $connection->page_name,
+                'status' => $data['status'] ?? 'connected',
+                'connected_at' => now(),
+                'updated_by' => $request->user()->id,
+            ]);
+
+            if (! empty($data['app_secret'])) {
+                $connection->app_secret = $data['app_secret'];
+            }
+            if (! empty($data['page_access_token'])) {
+                $connection->page_access_token = $data['page_access_token'];
+            }
+            if (! empty($data['webhook_verify_token'])) {
+                $connection->webhook_verify_token_hash = Hash::make($data['webhook_verify_token']);
+            }
+
+            $connection->save();
+        } catch (\Throwable $e) {
+            report($e);
+
+            return response()->json([
+                'message' => 'Failed to store Meta credentials: '.$e->getMessage(),
+            ], 500);
+        }
 
         AuditLog::query()->create([
             'actor_id' => $request->user()->id,
@@ -99,7 +113,7 @@ class MetaController extends Controller
                 'id' => $connection->id,
                 'status' => $connection->status,
                 'page_name' => $connection->page_name,
-                'webhook_callback_url' => url('/api/v1/meta/webhook'),
+                'webhook_callback_url' => rtrim((string) config('app.url'), '/').'/api/v1/meta/webhook',
             ],
         ]);
     }
