@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shreeram_crm/core/auth/auth_controller.dart';
 import 'package:shreeram_crm/core/theme/app_theme.dart';
+import 'package:shreeram_crm/shared/widgets/ui_kit.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
   const LoginScreen({super.key});
@@ -35,67 +36,112 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   @override
   Widget build(BuildContext context) {
     final auth = ref.watch(authControllerProvider);
+    final wide = MediaQuery.sizeOf(context).width >= 900;
+
     return Scaffold(
       body: Container(
         decoration: const BoxDecoration(
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [AppTheme.sand, AppTheme.mist, Color(0xFFD8E4DA)],
+            colors: [AppTheme.limestone, AppTheme.mist, Color(0xFFD7E5DC)],
           ),
         ),
         child: Center(
           child: ConstrainedBox(
-            constraints: const BoxConstraints(maxWidth: 420),
+            constraints: BoxConstraints(maxWidth: wide ? 980 : 460),
             child: Padding(
               padding: const EdgeInsets.all(24),
-              child: Column(
-                mainAxisAlignment: MainAxisAlignment.center,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  Text(
-                    'ShreeRam',
-                    style: Theme.of(context).textTheme.displaySmall?.copyWith(
-                          color: AppTheme.forest,
-                          fontWeight: FontWeight.w700,
-                        ),
-                  ),
-                  const SizedBox(height: 8),
-                  Text(
-                    'Lead CRM for your sales floor.',
-                    style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.ink),
-                  ),
-                  const SizedBox(height: 28),
-                  TextField(
-                    controller: _email,
-                    decoration: const InputDecoration(labelText: 'Email'),
-                    keyboardType: TextInputType.emailAddress,
-                  ),
-                  const SizedBox(height: 12),
-                  TextField(
-                    controller: _password,
-                    decoration: const InputDecoration(labelText: 'Password'),
-                    obscureText: true,
-                  ),
-                  if (auth.error != null) ...[
-                    const SizedBox(height: 12),
-                    Text(auth.error!, style: const TextStyle(color: Colors.redAccent)),
-                  ],
-                  const SizedBox(height: 20),
-                  ElevatedButton(
-                    onPressed: auth.loading
-                        ? null
-                        : () => ref.read(authControllerProvider.notifier).login(
-                              _email.text.trim(),
-                              _password.text,
-                            ),
-                    child: Text(auth.loading ? 'Signing in…' : 'Sign in'),
-                  ),
-                ],
-              ),
+              child: wide
+                  ? Row(
+                      children: [
+                        const Expanded(child: _BrandPanel()),
+                        const SizedBox(width: 28),
+                        Expanded(child: _LoginForm(email: _email, password: _password, auth: auth, ref: ref)),
+                      ],
+                    )
+                  : Column(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        const _BrandPanel(compact: true),
+                        const SizedBox(height: 22),
+                        _LoginForm(email: _email, password: _password, auth: auth, ref: ref),
+                      ],
+                    ),
             ),
           ),
         ),
+      ),
+    );
+  }
+}
+
+class _BrandPanel extends StatelessWidget {
+  const _BrandPanel({this.compact = false});
+  final bool compact;
+
+  @override
+  Widget build(BuildContext context) {
+    return SoftPanel(
+      padding: EdgeInsets.all(compact ? 24 : 36),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('ShreeRam', style: Theme.of(context).textTheme.displayMedium?.copyWith(color: AppTheme.forest)),
+          const SizedBox(height: 10),
+          Text(
+            'A calm, focused lead floor for real estate teams.',
+            style: Theme.of(context).textTheme.titleMedium,
+          ),
+          const SizedBox(height: 10),
+          Text(
+            'From Meta Lead Ads to site visit — one pipeline, clear ownership, zero clutter.',
+            style: Theme.of(context).textTheme.bodyMedium,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+class _LoginForm extends StatelessWidget {
+  const _LoginForm({
+    required this.email,
+    required this.password,
+    required this.auth,
+    required this.ref,
+  });
+
+  final TextEditingController email;
+  final TextEditingController password;
+  final AuthState auth;
+  final WidgetRef ref;
+
+  @override
+  Widget build(BuildContext context) {
+    return SoftPanel(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.stretch,
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Text('Sign in', style: Theme.of(context).textTheme.headlineSmall),
+          const SizedBox(height: 16),
+          TextField(controller: email, decoration: const InputDecoration(labelText: 'Email'), keyboardType: TextInputType.emailAddress),
+          const SizedBox(height: 12),
+          TextField(controller: password, decoration: const InputDecoration(labelText: 'Password'), obscureText: true),
+          if (auth.error != null) ...[
+            const SizedBox(height: 12),
+            Text(auth.error!, style: const TextStyle(color: AppTheme.danger)),
+          ],
+          const SizedBox(height: 18),
+          ElevatedButton(
+            onPressed: auth.loading
+                ? null
+                : () => ref.read(authControllerProvider.notifier).login(email.text.trim(), password.text),
+            child: Text(auth.loading ? 'Signing in…' : 'Continue'),
+          ),
+        ],
       ),
     );
   }

@@ -22,19 +22,31 @@ class MetaController extends Controller
     {
         abort_unless($request->user()->hasPermission('meta.manage'), 403);
         $connection = MetaConnection::query()->with('forms')->latest('id')->first();
+        $webhookUrl = rtrim((string) config('app.url'), '/').'/api/v1/meta/webhook';
 
         return response()->json([
-            'data' => $connection ? [
-                'id' => $connection->id,
-                'app_id' => $connection->app_id,
-                'page_id' => $connection->page_id,
-                'page_name' => $connection->page_name,
-                'status' => $connection->status,
-                'connected_at' => $connection->connected_at?->toIso8601String(),
-                'has_page_token' => filled($connection->page_access_token),
-                'forms' => $connection->forms,
-                'webhook_callback_url' => url('/api/v1/meta/webhook'),
-            ] : null,
+            'data' => [
+                'id' => $connection?->id,
+                'app_id' => $connection?->app_id,
+                'page_id' => $connection?->page_id,
+                'page_name' => $connection?->page_name,
+                'status' => $connection?->status ?? 'disconnected',
+                'connected_at' => $connection?->connected_at?->toIso8601String(),
+                'has_page_token' => filled($connection?->page_access_token),
+                'has_app_secret' => filled($connection?->app_secret),
+                'has_verify_token' => filled($connection?->webhook_verify_token_hash),
+                'forms' => $connection?->forms ?? [],
+                'webhook_callback_url' => $webhookUrl,
+                'setup_steps' => [
+                    'Create a Meta App and add the Lead Ads / Webhooks product.',
+                    'Paste App ID and App Secret below.',
+                    'Generate a verify token here, then use the same token in Meta webhook settings.',
+                    'Set Callback URL to the webhook URL shown below.',
+                    'Subscribe the Facebook Page to leadgen.',
+                    'Save Page ID, Page name, and Page access token.',
+                    'Register the Lead Form ID(s) you want to accept.',
+                ],
+            ],
         ]);
     }
 

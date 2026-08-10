@@ -1,20 +1,14 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shreeram_crm/core/network/api_client.dart';
+import 'package:shreeram_crm/core/network/lookup_providers.dart';
 import 'package:shreeram_crm/core/theme/app_theme.dart';
+import 'package:shreeram_crm/shared/widgets/ui_kit.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final leadDetailProvider = FutureProvider.family<Map<String, dynamic>, String>((ref, id) async {
-  final dio = ref.watch(dioProvider);
-  final res = await dio.get('/leads/$id');
+  final res = await ref.watch(dioProvider).get('/leads/$id');
   return Map<String, dynamic>.from(res.data['data'] as Map);
-});
-
-final stagesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
-  final dio = ref.watch(dioProvider);
-  final res = await dio.get('/lead-stages');
-  final list = res.data['data'] as List<dynamic>? ?? [];
-  return list.map((e) => Map<String, dynamic>.from(e as Map)).toList();
 });
 
 class LeadDetailScreen extends ConsumerStatefulWidget {
@@ -36,14 +30,35 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
   }
 
   Future<void> _call(String mobile) async {
-    final uri = Uri(scheme: 'tel', path: mobile);
-    await launchUrl(uri);
+    await launchUrl(Uri(scheme: 'tel', path: mobile));
   }
 
   Future<void> _whatsapp(String mobile) async {
     final cleaned = mobile.replaceAll(RegExp(r'\D'), '');
-    final uri = Uri.parse('https://wa.me/$cleaned');
-    await launchUrl(uri, mode: LaunchMode.externalApplication);
+    await launchUrl(Uri.parse('https://wa.me/$cleaned'), mode: LaunchMode.externalApplication);
+  }
+
+  Future<void> _scheduleFollowUp() async {
+    final due = DateTime.now().add(const Duration(days: 1));
+    await ref.read(dioProvider).post('/follow-ups', data: {
+      'lead_id': int.parse(widget.leadId),
+      'due_at': due.toIso8601String(),
+      'remarks': 'Follow-up scheduled from lead detail',
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Follow-up scheduled for tomorrow')));
+  }
+
+  Future<void> _scheduleVisit() async {
+    final when = DateTime.now().add(const Duration(days: 2, hours: 2));
+    await ref.read(dioProvider).post('/site-visits', data: {
+      'lead_id': int.parse(widget.leadId),
+      'scheduled_at': when.toIso8601String(),
+      'remarks': 'Site visit planned from lead detail',
+    });
+    if (!mounted) return;
+    ScaffoldMessenger.of(context).showSnackBar(const SnackBar(content: Text('Site visit planned')));
+    ref.invalidate(leadDetailProvider(widget.leadId));
   }
 
   @override
@@ -56,32 +71,60 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
       error: (e, _) => Center(child: Text('Failed to load lead: $e')),
       data: (lead) {
         return ListView(
-          padding: const EdgeInsets.all(20),
+          padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
           children: [
-            Text('${lead['name']}', style: Theme.of(context).textTheme.headlineMedium),
-            const SizedBox(height: 6),
-            Text('${lead['mobile']} · ${lead['email'] ?? 'No email'}'),
-            const SizedBox(height: 8),
-            Text('Stage: ${lead['stage']?['name'] ?? ''} · Source: ${lead['source']?['name'] ?? ''}'),
-            const SizedBox(height: 16),
-            Wrap(
-              spacing: 10,
-              children: [
-                ElevatedButton.icon(
-                  onPressed: () => _call('${lead['mobile']}'),
-                  icon: const Icon(Icons.call),
-                  label: const Text('Call'),
+            FadeSlideIn(
+              child: SoftPanel(
+                padding: const EdgeInsets.all(24),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('${lead['name']}', style: Theme.of(context).textTheme.headlineLarge),
+                    const SizedBox(height: 8),
+                    Text('${lead['mobile']}', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 4),
+                    Text(
+                      '${lead['email'] ?? 'No email'} · ${lead['source']?['name'] ?? ''} · ${lead['stage']?['name'] ?? ''}',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    if (lead['preferred_location'] != null) ...[
+                      const SizedBox(height: 8),
+                      Text('Prefers: ${lead['preferred_location']}', style: Theme.of(context).textTheme.bodyMedium),
+                    ],
+                    const SizedBox(height: 18),
+                    Wrap(
+                      spacing: 10,
+                      runSpacing: 10,
+                      children: [
+                        ElevatedButton.icon(
+                          onPressed: () => _call('${lead['mobile']}'),
+                          icon: const Icon(Icons.call_rounded),
+                          label: const Text('Call'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: () => _whatsapp('${lead['mobile']}'),
+                          icon: const Icon(Icons.chat_rounded),
+                          label: const Text('WhatsApp'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: _scheduleFollowUp,
+                          icon: const Icon(Icons.event_available_rounded),
+                          label: const Text('Follow-up'),
+                        ),
+                        OutlinedButton.icon(
+                          onPressed: _scheduleVisit,
+                          icon: const Icon(Icons.home_work_outlined),
+                          label: const Text('Site visit'),
+                        ),
+                      ],
+                    ),
+                  ],
                 ),
-                OutlinedButton.icon(
-                  onPressed: () => _whatsapp('${lead['mobile']}'),
-                  icon: const Icon(Icons.chat),
-                  label: const Text('WhatsApp'),
-                ),
-              ],
+              ),
             ),
-            const SizedBox(height: 24),
-            Text('Update stage', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
+            const SizedBox(height: 22),
+            Text('Move stage', style: Theme.of(context).textTheme.headlineSmall),
+            const SizedBox(height: 10),
             stagesAsync.when(
               loading: () => const LinearProgressIndicator(),
               error: (e, _) => Text('$e'),
@@ -106,31 +149,40 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
               },
             ),
             const SizedBox(height: 24),
-            Text('Add remark', style: Theme.of(context).textTheme.titleLarge),
-            const SizedBox(height: 8),
-            TextField(
-              controller: _remark,
-              maxLines: 3,
-              decoration: const InputDecoration(hintText: 'Notes from the conversation'),
-            ),
+            Text('Remarks', style: Theme.of(context).textTheme.headlineSmall),
             const SizedBox(height: 10),
-            Align(
-              alignment: Alignment.centerLeft,
-              child: ElevatedButton(
-                style: ElevatedButton.styleFrom(backgroundColor: AppTheme.clay),
-                onPressed: () async {
-                  final messenger = ScaffoldMessenger.of(context);
-                  if (_remark.text.trim().isEmpty) return;
-                  await ref.read(dioProvider).post(
-                    '/leads/${widget.leadId}/remarks',
-                    data: {'body': _remark.text.trim()},
-                  );
-                  _remark.clear();
-                  messenger.showSnackBar(
-                    const SnackBar(content: Text('Remark saved')),
-                  );
-                },
-                child: const Text('Save remark'),
+            SoftPanel(
+              child: Column(
+                children: [
+                  TextField(
+                    controller: _remark,
+                    maxLines: 3,
+                    decoration: const InputDecoration(
+                      hintText: 'What did the customer say?',
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: InputBorder.none,
+                      filled: false,
+                    ),
+                  ),
+                  Align(
+                    alignment: Alignment.centerRight,
+                    child: ElevatedButton(
+                      style: ElevatedButton.styleFrom(backgroundColor: AppTheme.brass, foregroundColor: AppTheme.ink),
+                      onPressed: () async {
+                        if (_remark.text.trim().isEmpty) return;
+                        final messenger = ScaffoldMessenger.of(context);
+                        await ref.read(dioProvider).post(
+                          '/leads/${widget.leadId}/remarks',
+                          data: {'body': _remark.text.trim()},
+                        );
+                        _remark.clear();
+                        messenger.showSnackBar(const SnackBar(content: Text('Remark saved')));
+                      },
+                      child: const Text('Save remark'),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
