@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shreeram_crm/core/auth/auth_controller.dart';
 import 'package:shreeram_crm/core/theme/app_theme.dart';
+import 'package:shreeram_crm/shared/widgets/brand_logo.dart';
 
 class AppShell extends ConsumerWidget {
   const AppShell({super.key, required this.child});
@@ -57,23 +58,12 @@ class AppShell extends ConsumerWidget {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      Padding(
-                        padding: const EdgeInsets.fromLTRB(22, 24, 22, 8),
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: [
-                            Text(
-                              'ShreeRam',
-                              style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white),
-                            ),
-                            const SizedBox(height: 4),
-                            Text(
-                              'Lead CRM',
-                              style: Theme.of(context).textTheme.bodyMedium?.copyWith(
-                                    color: Colors.white.withValues(alpha: 0.72),
-                                  ),
-                            ),
-                          ],
+                      const Padding(
+                        padding: EdgeInsets.fromLTRB(18, 22, 18, 8),
+                        child: BrandLogo(
+                          height: 44,
+                          showWordmark: true,
+                          wordmarkColor: Colors.white,
                         ),
                       ),
                       const SizedBox(height: 18),
@@ -122,11 +112,14 @@ class AppShell extends ConsumerWidget {
                         color: AppTheme.forest,
                         child: Row(
                           children: [
-                            Text(
-                              'ShreeRam',
-                              style: Theme.of(context).textTheme.titleLarge?.copyWith(color: Colors.white),
+                            const Expanded(
+                              child: BrandLogo(
+                                height: 34,
+                                showWordmark: true,
+                                compact: true,
+                                wordmarkColor: Colors.white,
+                              ),
                             ),
-                            const Spacer(),
                             IconButton(
                               onPressed: () => ref.read(authControllerProvider.notifier).logout(),
                               icon: const Icon(Icons.logout, color: Colors.white),

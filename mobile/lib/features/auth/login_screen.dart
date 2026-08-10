@@ -2,6 +2,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:shreeram_crm/core/auth/auth_controller.dart';
 import 'package:shreeram_crm/core/theme/app_theme.dart';
+import 'package:shreeram_crm/shared/widgets/brand_logo.dart';
 import 'package:shreeram_crm/shared/widgets/ui_kit.dart';
 
 class LoginScreen extends ConsumerStatefulWidget {
@@ -88,19 +89,27 @@ class _BrandPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          Text('ShreeRam', style: Theme.of(context).textTheme.displayMedium?.copyWith(color: AppTheme.forest)),
-          const SizedBox(height: 10),
+          BrandLogo(height: compact ? 56 : 72, showWordmark: false),
+          const SizedBox(height: 16),
           Text(
-            'A calm, focused lead floor for real estate teams.',
-            style: Theme.of(context).textTheme.titleMedium,
+            'ShreeRam Groups',
+            style: Theme.of(context).textTheme.displayMedium?.copyWith(
+                  color: AppTheme.brandGreenDark,
+                  fontSize: compact ? 28 : 34,
+                ),
+          ),
+          const SizedBox(height: 8),
+          Text(
+            'Lead CRM for your sales floor',
+            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.ink),
           ),
           const SizedBox(height: 10),
           Text(
-            'From Meta Lead Ads to site visit — one pipeline, clear ownership, zero clutter.',
+            'Board-style leads, clear Save actions, Call & WhatsApp in one place.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 14),
-          const StatusPill(label: 'UI build 2026-08-10-C'),
+          const StatusPill(label: 'UI build 2026-08-10-D'),
         ],
       ),
     );
