@@ -72,7 +72,7 @@ class MetaLeadIngestor
     public function processLeadgen(string $leadgenId, array $value, ?MetaWebhookEvent $event = null): MetaLeadIngestion
     {
         $existing = MetaLeadIngestion::query()->where('leadgen_id', $leadgenId)->first();
-        if ($existing && in_array($existing->status, ['processed', 'duplicate'], true)) {
+        if ($existing && in_array($existing->status, ['processed', 'duplicate', 'test_skipped'], true)) {
             return $existing;
         }
 
@@ -83,8 +83,30 @@ class MetaLeadIngestor
             'payload' => $value,
         ]);
 
+        // Meta Developer Console "Test" button sends stub IDs like 444444444444.
+        // Those are not real leads and Graph will return HTTP 400.
+        if ($this->isMetaSampleLeadgen($leadgenId, $value)) {
+            $ingestion->update([
+                'status' => 'test_skipped',
+                'message' => 'Meta sample webhook stub ignored. Use Lead Ads Testing Tool or a real form submit.',
+                'payload' => $value,
+            ]);
+
+            return $ingestion->fresh();
+        }
+
         $details = $this->fetchLeadDetails($leadgenId);
         $mapped = $this->mapLeadFields($details, $value);
+
+        if (empty($mapped['name']) && empty($mapped['mobile']) && empty($mapped['email'])) {
+            $ingestion->update([
+                'status' => 'failed',
+                'message' => 'Graph API returned no lead fields. Check Page access token permissions (leads_retrieval).',
+                'payload' => array_merge($value, ['graph' => $details]),
+            ]);
+
+            return $ingestion->fresh();
+        }
 
         $source = LeadSource::query()->where('code', 'META')->firstOrFail();
         $result = $this->intake->intake([
@@ -112,6 +134,25 @@ class MetaLeadIngestor
         ]);
 
         return $ingestion->fresh();
+    }
+
+    /**
+     * @param  array<string, mixed>  $value
+     */
+    private function isMetaSampleLeadgen(string $leadgenId, array $value): bool
+    {
+        if (preg_match('/^4+$/', $leadgenId) === 1) {
+            return true;
+        }
+
+        foreach (['page_id', 'form_id', 'ad_id', 'adgroup_id'] as $key) {
+            $v = (string) ($value[$key] ?? '');
+            if ($v !== '' && preg_match('/^4+$/', $v) === 1) {
+                return true;
+            }
+        }
+
+        return false;
     }
 
     /**
