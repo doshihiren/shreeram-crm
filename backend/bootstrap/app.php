@@ -17,6 +17,10 @@ return Application::configure(basePath: dirname(__DIR__))
             'active' => \App\Http\Middleware\EnsureUserIsActive::class,
             'role' => \App\Http\Middleware\EnsureRole::class,
         ]);
+
+        // API-only app: never redirect to a web "login" named route.
+        $middleware->redirectGuestsTo(fn (Request $request) => null);
+        $middleware->trustProxies(at: '*');
     })
     ->withExceptions(function (Exceptions $exceptions): void {
         $exceptions->shouldRenderJsonWhen(
