@@ -10,6 +10,7 @@ use App\Services\Lead\LeadIntakeService;
 use Illuminate\Support\Facades\Hash;
 use Illuminate\Support\Facades\Http;
 use Illuminate\Support\Facades\Log;
+use Illuminate\Support\Str;
 
 class MetaLeadIngestor
 {
@@ -71,25 +72,57 @@ class MetaLeadIngestor
      */
     public function processLeadgen(string $leadgenId, array $value, ?MetaWebhookEvent $event = null): MetaLeadIngestion
     {
-        $existing = MetaLeadIngestion::query()->where('leadgen_id', $leadgenId)->first();
-        if ($existing && in_array($existing->status, ['processed', 'duplicate', 'test_skipped'], true)) {
-            return $existing;
+        $isSample = $this->isMetaSampleLeadgen($leadgenId, $value);
+
+        // Real leads: idempotent by Meta leadgen_id.
+        // Sample stubs always reuse 4444..., so key them per webhook event for demo visibility.
+        $ingestionKey = $isSample
+            ? 'sample-'.($event?->id ?? 'x').'-'.$leadgenId.'-'.Str::lower(Str::random(6))
+            : $leadgenId;
+
+        if (! $isSample) {
+            $existing = MetaLeadIngestion::query()->where('leadgen_id', $leadgenId)->first();
+            if ($existing && in_array($existing->status, ['processed', 'duplicate', 'test_skipped'], true)) {
+                return $existing;
+            }
         }
 
-        $ingestion = $existing ?? MetaLeadIngestion::query()->create([
-            'leadgen_id' => $leadgenId,
+        $ingestion = MetaLeadIngestion::query()->create([
+            'leadgen_id' => $ingestionKey,
             'meta_webhook_event_id' => $event?->id,
             'status' => 'received',
             'payload' => $value,
         ]);
 
         // Meta Developer Console "Test" button sends stub IDs like 444444444444.
-        // Those are not real leads and Graph will return HTTP 400.
-        if ($this->isMetaSampleLeadgen($leadgenId, $value)) {
+        // Create a visible demo lead so each Test click appears in the CRM.
+        if ($isSample) {
+            $source = LeadSource::query()->where('code', 'META')->firstOrFail();
+            $seq = MetaLeadIngestion::query()->where('status', 'processed_sample')->count() + 1;
+            $result = $this->intake->intake([
+                'name' => 'Meta Test Lead #'.$seq,
+                'mobile' => '9000000'.str_pad((string) min($seq, 999), 3, '0', STR_PAD_LEFT),
+                'email' => null,
+                'lead_source_id' => $source->id,
+                'external_lead_id' => $ingestionKey,
+                'preferred_location' => 'Meta webhook test',
+            ], [
+                'page_id' => $value['page_id'] ?? null,
+                'form_id' => $value['form_id'] ?? null,
+                'ad_id' => $value['ad_id'] ?? null,
+                'adset_id' => $value['adgroup_id'] ?? ($value['adset_id'] ?? null),
+                'campaign_id' => $value['campaign_id'] ?? null,
+                'leadgen_id' => $leadgenId,
+                'raw_field_data' => [
+                    'note' => 'Created from Meta Webhooks Test stub (not a real form submit).',
+                ],
+            ]);
+
             $ingestion->update([
-                'status' => 'test_skipped',
-                'message' => 'Meta sample webhook stub ignored. Use Lead Ads Testing Tool or a real form submit.',
-                'payload' => $value,
+                'lead_id' => $result['lead']->id,
+                'status' => 'processed_sample',
+                'message' => 'Meta sample webhook: demo lead created (Graph has no real field data for 4444... IDs).',
+                'payload' => array_merge($value, ['sample' => true]),
             ]);
 
             return $ingestion->fresh();
