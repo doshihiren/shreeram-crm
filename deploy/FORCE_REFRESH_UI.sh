@@ -31,26 +31,11 @@ cat <<'EOF'
 
 FILES READY at backend/public/app-v3
 
-NEXT (required once): update Nginx using
-  deploy/nginx/shreeram-crm.path.example.conf
-  docs/NGINX_V3_CUTOVER.md
+NEXT (one command — no manual nano):
+  sudo bash deploy/CUTOVER_NGINX_V3.sh
 
-1) Backup first:
-   sudo mkdir -p /etc/nginx/backups
-   sudo cp -a /etc/nginx/sites-enabled/aweliontech \
-     /etc/nginx/backups/aweliontech.bak.$(date +%F-%H%M%S)
-
-2) Edit:
-   sudo nano /etc/nginx/sites-enabled/aweliontech
-   - Keep API location /shreeram-crm/api/
-   - Serve /shreeram-crm/v3/ from app-v3
-   - Redirect /shreeram-crm/ and /shreeram-crm/v2/ -> /shreeram-crm/v3/
-
-3) Test + reload:
-   sudo nginx -t && sudo systemctl reload nginx
-
-4) Open ONLY this URL (Incognito / hard refresh):
-   https://aweliontech.com/shreeram-crm/v3/
+Then open Incognito:
+  https://aweliontech.com/shreeram-crm/v3/
 
 Login: owner@shreeram.local / ChangeMeOwner1!
 Expect: UI build 2026-08-11-V3 + "Pipeline board" + logo
