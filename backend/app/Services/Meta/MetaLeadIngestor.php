@@ -208,7 +208,9 @@ class MetaLeadIngestor
             Log::warning('Meta Graph lead fetch failed', [
                 'leadgen_id' => $leadgenId,
                 'status' => $response->status(),
+                'body' => Str::limit($response->body(), 500),
             ]);
+
             return [];
         }
 
@@ -229,9 +231,19 @@ class MetaLeadIngestor
             $fields[$name] = $values[0] ?? null;
         }
 
+        $mobile = $fields['phone_number']
+            ?? $fields['mobile']
+            ?? $fields['phone']
+            ?? $fields['work_phone_number']
+            ?? null;
+        if (is_string($mobile)) {
+            // Lead Center exports often look like "p:+9198..."
+            $mobile = preg_replace('/^p:/i', '', $mobile) ?? $mobile;
+        }
+
         return [
             'name' => $fields['full_name'] ?? $fields['name'] ?? $fields['first_name'] ?? null,
-            'mobile' => $fields['phone_number'] ?? $fields['mobile'] ?? $fields['phone'] ?? null,
+            'mobile' => $mobile,
             'email' => $fields['email'] ?? null,
             'preferred_location' => $fields['preferred_location'] ?? $fields['city'] ?? null,
         ];
