@@ -28,6 +28,9 @@ class ImportMetaLeads extends Command
             return self::FAILURE;
         }
 
+        // If a USER token was saved, try to exchange it for a PAGE token first.
+        $token = $this->ensurePageToken($connection, $token);
+
         $ids = collect($this->argument('leadgen_ids'))
             ->map(fn ($id) => preg_replace('/^l:/i', '', trim((string) $id)))
             ->filter()
@@ -47,9 +50,9 @@ class ImportMetaLeads extends Command
             $this->info("Pulling last {$limit} lead(s) from form {$formId}…");
             $ids = collect($this->fetchFormLeadIds((string) $formId, $token, $limit));
             if ($ids->isEmpty() && $connection?->page_id) {
-                $this->warn('Direct form pull failed/empty. Listing page forms for a usable form id…');
+                $this->warn('Direct form pull failed/empty.');
+                $this->warn('If diagnose says USER token, run: php artisan meta:exchange-page-token');
                 $this->listPageForms((string) $connection->page_id, $token);
-                $this->warn('Run: php artisan meta:diagnose   then fix Page token permissions and retry.');
             }
             $this->info('Got '.$ids->count().' lead id(s)');
         }
@@ -141,5 +144,77 @@ class ImportMetaLeads extends Command
         }
 
         return $ids;
+    }
+
+    private function ensurePageToken(?MetaConnection $connection, string $token): string
+    {
+        if (! $connection?->page_id) {
+            return $token;
+        }
+
+        $version = config('services.meta.api_version', 'v21.0');
+        $pageId = (string) $connection->page_id;
+        $me = Http::timeout(15)->get("https://graph.facebook.com/{$version}/me", [
+            'access_token' => $token,
+            'fields' => 'id,name',
+        ]);
+        if ($me->successful() && (string) $me->json('id') === $pageId) {
+            return $token;
+        }
+
+        $this->warn('Saved token is not a Page token ('.($me->json('name') ?? 'unknown').'). Trying /me/accounts exchange…');
+        $accounts = Http::timeout(30)->get("https://graph.facebook.com/{$version}/me/accounts", [
+            'access_token' => $token,
+            'fields' => 'id,name,access_token',
+            'limit' => 100,
+        ]);
+        if (! $accounts->successful()) {
+            $this->error('Exchange failed HTTP '.$accounts->status().': '.$accounts->body());
+            $this->warn('Run: php artisan meta:exchange-page-token');
+
+            return $token;
+        }
+
+        $match = collect($accounts->json('data') ?? [])
+            ->first(fn ($p) => (string) ($p['id'] ?? '') === $pageId);
+        $pageToken = (string) ($match['access_token'] ?? '');
+        if ($pageToken === '') {
+            $this->error("Page {$pageId} not found in /me/accounts.");
+
+            return $token;
+        }
+
+        $connection->page_access_token = $pageToken;
+        if (! empty($match['name'])) {
+            $connection->page_name = $match['name'];
+        }
+        $connection->save();
+        $this->info('Exchanged and saved Page token for '.$pageId);
+
+        return $pageToken;
+    }
+
+    private function listPageForms(string $pageId, string $token): void
+    {
+        $version = config('services.meta.api_version', 'v21.0');
+        $response = Http::timeout(20)->get("https://graph.facebook.com/{$version}/{$pageId}/leadgen_forms", [
+            'access_token' => $token,
+            'fields' => 'id,name,status,leads_count',
+            'limit' => 50,
+        ]);
+        if (! $response->successful()) {
+            $this->error('Page forms list failed HTTP '.$response->status().': '.$response->body());
+
+            return;
+        }
+        foreach ($response->json('data') ?? [] as $f) {
+            $this->line(sprintf(
+                '  form=%s name=%s status=%s leads=%s',
+                $f['id'] ?? '',
+                $f['name'] ?? '',
+                $f['status'] ?? '',
+                $f['leads_count'] ?? '?'
+            ));
+        }
     }
 }
