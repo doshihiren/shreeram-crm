@@ -14,16 +14,17 @@ class ImportMetaLeads extends Command
         {leadgen_ids?* : One or more Meta lead IDs (without l: prefix)}
         {--form= : Pull recent leads from this Meta form ID}
         {--limit=100 : Max leads to pull when using --form}
-        {--page= : Optional page_id for attribution}';
+        {--page= : Optional page_id for attribution}
+        {--csv= : Path to Meta Lead Center export (csv/tsv) — imports by lead id}';
 
-    protected $description = 'Import real Meta leads by leadgen ID or by pulling a form feed (backfill)';
+    protected $description = 'Import real Meta leads by leadgen ID, CSV export, or form feed';
 
     public function handle(MetaLeadIngestor $ingestor): int
     {
         $connection = MetaConnection::query()->latest('id')->first();
         $token = $connection?->page_access_token ?: config('services.meta.page_access_token');
         if (! $token) {
-            $this->error('No Page access token. Save it in CRM Meta settings (or META_PAGE_ACCESS_TOKEN).');
+            $this->error('No access token. Save it in CRM Meta settings (or META_PAGE_ACCESS_TOKEN).');
 
             return self::FAILURE;
         }
@@ -36,23 +37,33 @@ class ImportMetaLeads extends Command
             ->filter()
             ->values();
 
+        $csv = $this->option('csv');
+        if ($ids->isEmpty() && is_string($csv) && $csv !== '') {
+            $ids = collect($this->extractLeadIdsFromCsv($csv));
+            $this->info('CSV lead ids found: '.$ids->count());
+        }
+
         $formId = $this->option('form')
             ?: MetaLeadForm::query()->latest('id')->value('form_id')
             ?: '1301528194957429';
 
         if ($ids->isEmpty()) {
             if (! $formId) {
-                $this->error('Pass lead IDs and/or --form=FORM_ID');
+                $this->error('Pass lead IDs, --csv=file, and/or --form=FORM_ID');
 
                 return self::FAILURE;
             }
             $limit = max(1, (int) $this->option('limit'));
             $this->info("Pulling last {$limit} lead(s) from form {$formId}…");
             $ids = collect($this->fetchFormLeadIds((string) $formId, $token, $limit));
-            if ($ids->isEmpty() && $connection?->page_id) {
-                $this->warn('Direct form pull failed/empty.');
-                $this->warn('If diagnose says USER token, run: php artisan meta:exchange-page-token');
-                $this->listPageForms((string) $connection->page_id, $token);
+            if ($ids->isEmpty()) {
+                $this->warn('Form pull failed/empty.');
+                $this->warn('Your Facebook user likely has no role on Shreeram Developer page.');
+                $this->warn('Workaround: export leads from Meta Lead Center → php artisan meta:import-leads --csv=/path/file.csv');
+                $this->warn('Or import IDs: php artisan meta:import-leads ID1 ID2 --form='.$formId);
+                if ($connection?->page_id) {
+                    $this->listPageForms((string) $connection->page_id, $token);
+                }
             }
             $this->info('Got '.$ids->count().' lead id(s)');
         }
@@ -96,10 +107,37 @@ class ImportMetaLeads extends Command
         $this->newLine(2);
         $this->info("Done. imported_or_duplicate={$ok} failed={$fail}");
         if ($fail > 0) {
-            $this->warn('If status=failed: renew Page access token with leads_retrieval and re-run.');
+            $this->warn('Failed rows usually mean token/permission issues for that lead id.');
         }
 
         return $fail > 0 ? self::FAILURE : self::SUCCESS;
+    }
+
+    /**
+     * @return list<string>
+     */
+    private function extractLeadIdsFromCsv(string $path): array
+    {
+        if (! is_file($path)) {
+            $this->error('CSV not found: '.$path);
+
+            return [];
+        }
+
+        $raw = file_get_contents($path);
+        if ($raw === false || $raw === '') {
+            return [];
+        }
+
+        preg_match_all('/(?:^|[,\t\s"])l?:?(\d{10,})/m', $raw, $m);
+        $ids = collect($m[1] ?? [])
+            ->map(fn ($id) => (string) $id)
+            ->unique()
+            ->values()
+            ->all();
+
+        // Prefer IDs that look like leadgen (exclude obvious page/form/campaign if mixed)
+        return $ids;
     }
 
     /**
@@ -138,7 +176,6 @@ class ImportMetaLeads extends Command
             if (! is_string($next) || $next === '') {
                 break;
             }
-            // Absolute next URL already includes token/cursor
             $url = $next;
             $params = [];
         }
@@ -170,17 +207,25 @@ class ImportMetaLeads extends Command
         ]);
         if (! $accounts->successful()) {
             $this->error('Exchange failed HTTP '.$accounts->status().': '.$accounts->body());
-            $this->warn('Run: php artisan meta:exchange-page-token');
 
             return $token;
         }
 
-        $match = collect($accounts->json('data') ?? [])
-            ->first(fn ($p) => (string) ($p['id'] ?? '') === $pageId);
+        $pages = collect($accounts->json('data') ?? []);
+        $match = $pages->first(fn ($p) => (string) ($p['id'] ?? '') === $pageId);
+        if (! $match) {
+            $this->error("Page {$pageId} not found in /me/accounts.");
+            $this->warn('Hiren Doshi can manage these Pages instead:');
+            foreach ($pages->take(15) as $p) {
+                $this->line('  - '.($p['id'] ?? '').' '.($p['name'] ?? ''));
+            }
+            $this->warn('Ask Business Admin to assign "Shreeram Developer" to your user (Advertise or Full control).');
+
+            return $token;
+        }
+
         $pageToken = (string) ($match['access_token'] ?? '');
         if ($pageToken === '') {
-            $this->error("Page {$pageId} not found in /me/accounts.");
-
             return $token;
         }
 
