@@ -46,6 +46,11 @@ class ImportMetaLeads extends Command
             $limit = max(1, (int) $this->option('limit'));
             $this->info("Pulling last {$limit} lead(s) from form {$formId}…");
             $ids = collect($this->fetchFormLeadIds((string) $formId, $token, $limit));
+            if ($ids->isEmpty() && $connection?->page_id) {
+                $this->warn('Direct form pull failed/empty. Listing page forms for a usable form id…');
+                $this->listPageForms((string) $connection->page_id, $token);
+                $this->warn('Run: php artisan meta:diagnose   then fix Page token permissions and retry.');
+            }
             $this->info('Got '.$ids->count().' lead id(s)');
         }
 
