@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# Deploy cache-bust UI at /shreeram-crm/v2/ (bypasses old Flutter service worker)
+# Deploy cache-bust UI at /shreeram-crm/v3/ (new path = no old Flutter SW / CDN cache)
 
 set -euo pipefail
 cd /var/www/shreeram-crm
@@ -9,18 +9,18 @@ git checkout cursor/crm-implementation-523b
 git pull origin cursor/crm-implementation-523b
 
 echo "COMMIT=$(git rev-parse --short HEAD)"
-test -f mobile/lib/features/meta/meta_connection_screen.dart && echo META_SOURCE_OK
-grep -n 'base href="/shreeram-crm/v2/"' deploy/web-dist-v2/index.html
-grep -n "UI build 2026-08-10-C" deploy/web-dist-v2/main.dart.js | head -1
-grep -n "Command center" deploy/web-dist-v2/main.dart.js | head -1
+test -f deploy/web-dist-v3/index.html
+grep -n 'base href="/shreeram-crm/v3/"' deploy/web-dist-v3/index.html
+grep -n "UI build 2026-08-11-V3" deploy/web-dist-v3/main.dart.js | head -1
+grep -n "Pipeline board" deploy/web-dist-v3/main.dart.js | head -1
 
-rm -rf backend/public/app-v2
-mkdir -p backend/public/app-v2
-cp -a deploy/web-dist-v2/. backend/public/app-v2/
+rm -rf backend/public/app-v3
+mkdir -p backend/public/app-v3
+cp -a deploy/web-dist-v3/. backend/public/app-v3/
 
-grep -n 'base href="/shreeram-crm/v2/"' backend/public/app-v2/index.html
-grep -n "UI build 2026-08-10-C" backend/public/app-v2/main.dart.js | head -1
-ls -la backend/public/app-v2/index.html backend/public/app-v2/main.dart.js
+grep -n 'base href="/shreeram-crm/v3/"' backend/public/app-v3/index.html
+grep -n "UI build 2026-08-11-V3" backend/public/app-v3/main.dart.js | head -1
+ls -la backend/public/app-v3/index.html backend/public/app-v3/main.dart.js
 
 cd backend
 php artisan config:clear
@@ -29,10 +29,11 @@ php artisan config:cache
 
 cat <<'EOF'
 
-FILES READY at backend/public/app-v2
+FILES READY at backend/public/app-v3
 
-NEXT (required once): update Nginx locations using
+NEXT (required once): update Nginx using
   deploy/nginx/shreeram-crm.path.example.conf
+  docs/NGINX_V3_CUTOVER.md
 
 1) Backup first:
    sudo mkdir -p /etc/nginx/backups
@@ -42,15 +43,15 @@ NEXT (required once): update Nginx locations using
 2) Edit:
    sudo nano /etc/nginx/sites-enabled/aweliontech
    - Keep API location /shreeram-crm/api/
-   - Change UI to serve /shreeram-crm/v2/ from app-v2
-   - Redirect /shreeram-crm/ -> /shreeram-crm/v2/
+   - Serve /shreeram-crm/v3/ from app-v3
+   - Redirect /shreeram-crm/ and /shreeram-crm/v2/ -> /shreeram-crm/v3/
 
 3) Test + reload:
    sudo nginx -t && sudo systemctl reload nginx
 
-4) Open ONLY this URL (Incognito):
-   https://aweliontech.com/shreeram-crm/v2/
+4) Open ONLY this URL (Incognito / hard refresh):
+   https://aweliontech.com/shreeram-crm/v3/
 
 Login: owner@shreeram.local / ChangeMeOwner1!
-Expect: UI build 2026-08-10-C + Meta menu
+Expect: UI build 2026-08-11-V3 + "Pipeline board" + logo
 EOF

@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 import 'package:shreeram_crm/core/network/api_client.dart';
 import 'package:shreeram_crm/core/network/lookup_providers.dart';
 import 'package:shreeram_crm/core/theme/app_theme.dart';
+import 'package:shreeram_crm/shared/widgets/brand_logo.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final leadsBoardProvider = FutureProvider.family<List<Map<String, dynamic>>, String?>((ref, stageId) async {
@@ -302,64 +303,107 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
     return Column(
       children: [
         Container(
-          color: Colors.white,
+          decoration: const BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.centerLeft,
+              end: Alignment.centerRight,
+              colors: [Color(0xFFFFFFFF), Color(0xFFEEF8F0)],
+            ),
+            border: Border(bottom: BorderSide(color: AppTheme.line)),
+          ),
           padding: const EdgeInsets.fromLTRB(20, 14, 20, 12),
           child: Column(
             children: [
               Row(
                 children: [
-                  Container(
-                    width: 8,
-                    height: 28,
-                    decoration: BoxDecoration(
-                      color: AppTheme.brandGold,
-                      borderRadius: BorderRadius.circular(4),
+                  const BrandLogo(height: 36, showWordmark: false),
+                  const SizedBox(width: 12),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Row(
+                          children: [
+                            Text('Pipeline board', style: Theme.of(context).textTheme.headlineMedium),
+                            const SizedBox(width: 8),
+                            Container(
+                              padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+                              decoration: BoxDecoration(
+                                color: AppTheme.brandGold.withValues(alpha: 0.2),
+                                borderRadius: BorderRadius.circular(6),
+                              ),
+                              child: const Text(
+                                'V3',
+                                style: TextStyle(
+                                  color: AppTheme.brandGoldDeep,
+                                  fontWeight: FontWeight.w800,
+                                  fontSize: 11,
+                                ),
+                              ),
+                            ),
+                            const SizedBox(width: 8),
+                            leadsAsync.maybeWhen(
+                              data: (leads) => Container(
+                                padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                                decoration: BoxDecoration(
+                                  color: AppTheme.mist,
+                                  borderRadius: BorderRadius.circular(8),
+                                ),
+                                child: Text(
+                                  '${_filter(leads).length} leads',
+                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12),
+                                ),
+                              ),
+                              orElse: () => const SizedBox.shrink(),
+                            ),
+                          ],
+                        ),
+                        Text(
+                          'Drag stages with Move · tap a card to edit · Save is always clear',
+                          style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
+                        ),
+                      ],
                     ),
                   ),
-                  const SizedBox(width: 10),
-                  Text('Leads', style: Theme.of(context).textTheme.headlineMedium),
-                  const SizedBox(width: 10),
-                  leadsAsync.maybeWhen(
-                    data: (leads) => Container(
-                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-                      decoration: BoxDecoration(
-                        color: AppTheme.mist,
-                        borderRadius: BorderRadius.circular(8),
+                  if (wide) ...[
+                    SegmentedButton<_LeadsView>(
+                      segments: const [
+                        ButtonSegment(
+                          value: _LeadsView.board,
+                          icon: Icon(Icons.view_kanban_outlined, size: 18),
+                          label: Text('Board'),
+                        ),
+                        ButtonSegment(
+                          value: _LeadsView.table,
+                          icon: Icon(Icons.table_rows_outlined, size: 18),
+                          label: Text('Table'),
+                        ),
+                      ],
+                      selected: {_view},
+                      onSelectionChanged: (s) => setState(() => _view = s.first),
+                      style: ButtonStyle(
+                        visualDensity: VisualDensity.compact,
+                        foregroundColor: WidgetStateProperty.resolveWith((states) {
+                          if (states.contains(WidgetState.selected)) return AppTheme.brandGreenDark;
+                          return AppTheme.muted;
+                        }),
                       ),
-                      child: Text('${_filter(leads).length}', style: const TextStyle(fontWeight: FontWeight.w800)),
                     ),
-                    orElse: () => const SizedBox.shrink(),
-                  ),
-                  const Spacer(),
-                  SegmentedButton<_LeadsView>(
-                    segments: const [
-                      ButtonSegment(value: _LeadsView.board, icon: Icon(Icons.view_kanban_outlined, size: 18), label: Text('Board')),
-                      ButtonSegment(value: _LeadsView.table, icon: Icon(Icons.table_rows_outlined, size: 18), label: Text('Table')),
-                    ],
-                    selected: {_view},
-                    onSelectionChanged: (s) => setState(() => _view = s.first),
-                    style: ButtonStyle(
-                      visualDensity: VisualDensity.compact,
-                      foregroundColor: WidgetStateProperty.resolveWith((states) {
-                        if (states.contains(WidgetState.selected)) return AppTheme.brandGreenDark;
-                        return AppTheme.muted;
-                      }),
-                    ),
-                  ),
-                  const SizedBox(width: 10),
-                  SizedBox(
-                    width: wide ? 260 : 140,
-                    child: TextField(
-                      controller: _search,
-                      onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
-                      decoration: const InputDecoration(
-                        prefixIcon: Icon(Icons.search),
-                        hintText: 'Search name or mobile',
-                        isDense: true,
+                    const SizedBox(width: 10),
+                    SizedBox(
+                      width: 240,
+                      child: TextField(
+                        controller: _search,
+                        onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.search),
+                          hintText: 'Search name or mobile',
+                          isDense: true,
+                        ),
                       ),
                     ),
-                  ),
-                  const SizedBox(width: 10),
+                    const SizedBox(width: 10),
+                  ],
                   ElevatedButton.icon(
                     onPressed: _openCreateLead,
                     icon: const Icon(Icons.add),
@@ -367,6 +411,44 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                   ),
                 ],
               ),
+              if (!wide) ...[
+                const SizedBox(height: 10),
+                Row(
+                  children: [
+                    Expanded(
+                      child: SegmentedButton<_LeadsView>(
+                        segments: const [
+                          ButtonSegment(
+                            value: _LeadsView.board,
+                            icon: Icon(Icons.view_kanban_outlined, size: 18),
+                            label: Text('Board'),
+                          ),
+                          ButtonSegment(
+                            value: _LeadsView.table,
+                            icon: Icon(Icons.table_rows_outlined, size: 18),
+                            label: Text('Table'),
+                          ),
+                        ],
+                        selected: {_view},
+                        onSelectionChanged: (s) => setState(() => _view = s.first),
+                        style: const ButtonStyle(visualDensity: VisualDensity.compact),
+                      ),
+                    ),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: TextField(
+                        controller: _search,
+                        onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
+                        decoration: const InputDecoration(
+                          prefixIcon: Icon(Icons.search),
+                          hintText: 'Search',
+                          isDense: true,
+                        ),
+                      ),
+                    ),
+                  ],
+                ),
+              ],
               const SizedBox(height: 12),
               stagesAsync.when(
                 loading: () => const LinearProgressIndicator(minHeight: 2),
