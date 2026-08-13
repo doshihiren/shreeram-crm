@@ -11,7 +11,7 @@ git pull origin cursor/crm-implementation-523b
 echo "COMMIT=$(git rev-parse --short HEAD)"
 test -f deploy/web-dist-v3/index.html
 grep -n 'base href="/shreeram-crm/v3/"' deploy/web-dist-v3/index.html
-grep -n "UI build 2026-08-13-LOGO" deploy/web-dist-v3/main.dart.js | head -1
+grep -n "UI build 2026-08-13-QUICKLOGIN" deploy/web-dist-v3/main.dart.js | head -1
 grep -n "Pipeline board\|Sales command center\|All statuses" deploy/web-dist-v3/main.dart.js | head -1
 
 rm -rf backend/public/app-v3
@@ -19,7 +19,7 @@ mkdir -p backend/public/app-v3
 cp -a deploy/web-dist-v3/. backend/public/app-v3/
 
 grep -n 'base href="/shreeram-crm/v3/"' backend/public/app-v3/index.html
-grep -n "UI build 2026-08-13-LOGO" backend/public/app-v3/main.dart.js | head -1
+grep -n "UI build 2026-08-13-QUICKLOGIN" backend/public/app-v3/main.dart.js | head -1
 ls -la backend/public/app-v3/index.html backend/public/app-v3/main.dart.js
 
 cd backend
@@ -38,5 +38,5 @@ Then open Incognito:
   https://aweliontech.com/shreeram-crm/v3/
 
 Login: owner@shreeram.local / ChangeMeOwner1!
-Expect: UI build 2026-08-13-LOGO + Shreeram Developer logo
+Expect: UI build 2026-08-13-QUICKLOGIN + Owner/Admin/Sales buttons
 EOF
