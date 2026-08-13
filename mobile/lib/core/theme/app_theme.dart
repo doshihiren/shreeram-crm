@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
   // ShreeRam Developer logo: deep forest/teal green + metallic gold
@@ -25,23 +24,45 @@ class AppTheme {
   static const mist = Color(0xFFE7F3EA);
   static const danger = brandRed;
 
-  static ThemeData light() {
-    final textTheme = GoogleFonts.manropeTextTheme().copyWith(
-      displayLarge: GoogleFonts.manrope(fontWeight: FontWeight.w800, color: ink, fontSize: 40),
-      displayMedium: GoogleFonts.manrope(fontWeight: FontWeight.w800, color: ink, fontSize: 32),
-      headlineLarge: GoogleFonts.manrope(fontWeight: FontWeight.w800, color: ink, fontSize: 28),
-      headlineMedium: GoogleFonts.manrope(fontWeight: FontWeight.w700, color: ink, fontSize: 22),
-      headlineSmall: GoogleFonts.manrope(fontWeight: FontWeight.w700, color: ink, fontSize: 18),
-      titleLarge: GoogleFonts.manrope(fontWeight: FontWeight.w700, color: ink, fontSize: 16),
-      titleMedium: GoogleFonts.manrope(fontWeight: FontWeight.w600, color: ink, fontSize: 15),
-      bodyLarge: GoogleFonts.manrope(color: ink, fontSize: 15, height: 1.45),
-      bodyMedium: GoogleFonts.manrope(color: muted, fontSize: 13, height: 1.45),
-      labelLarge: GoogleFonts.manrope(fontWeight: FontWeight.w700, letterSpacing: 0.1),
-    );
+  static const String fontFamily = 'Manrope';
 
-    return ThemeData(
+  static TextStyle _text({
+    FontWeight fontWeight = FontWeight.w400,
+    double? fontSize,
+    Color? color,
+    double? height,
+    double? letterSpacing,
+  }) {
+    return TextStyle(
+      fontFamily: fontFamily,
+      fontWeight: fontWeight,
+      fontSize: fontSize,
+      color: color,
+      height: height,
+      letterSpacing: letterSpacing,
+    );
+  }
+
+  static ThemeData light() {
+    final base = ThemeData(
       useMaterial3: true,
       brightness: Brightness.light,
+      fontFamily: fontFamily,
+    );
+    final textTheme = base.textTheme.copyWith(
+      displayLarge: _text(fontWeight: FontWeight.w800, color: ink, fontSize: 40),
+      displayMedium: _text(fontWeight: FontWeight.w800, color: ink, fontSize: 32),
+      headlineLarge: _text(fontWeight: FontWeight.w800, color: ink, fontSize: 28),
+      headlineMedium: _text(fontWeight: FontWeight.w700, color: ink, fontSize: 22),
+      headlineSmall: _text(fontWeight: FontWeight.w700, color: ink, fontSize: 18),
+      titleLarge: _text(fontWeight: FontWeight.w700, color: ink, fontSize: 16),
+      titleMedium: _text(fontWeight: FontWeight.w600, color: ink, fontSize: 15),
+      bodyLarge: _text(color: ink, fontSize: 15, height: 1.45),
+      bodyMedium: _text(color: muted, fontSize: 13, height: 1.45),
+      labelLarge: _text(fontWeight: FontWeight.w700, letterSpacing: 0.1),
+    );
+
+    return base.copyWith(
       scaffoldBackgroundColor: boardBg,
       colorScheme: const ColorScheme.light(
         primary: brandGreenDark,
@@ -66,14 +87,14 @@ class AppTheme {
         backgroundColor: surface,
         foregroundColor: ink,
         elevation: 0,
-        titleTextStyle: GoogleFonts.manrope(fontSize: 18, fontWeight: FontWeight.w800, color: ink),
+        titleTextStyle: _text(fontSize: 18, fontWeight: FontWeight.w800, color: ink),
       ),
       inputDecorationTheme: InputDecorationTheme(
         filled: true,
         fillColor: Colors.white,
         contentPadding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
-        labelStyle: GoogleFonts.manrope(color: muted, fontWeight: FontWeight.w600),
-        hintStyle: GoogleFonts.manrope(color: muted),
+        labelStyle: _text(color: muted, fontWeight: FontWeight.w600),
+        hintStyle: _text(color: muted),
         border: OutlineInputBorder(
           borderRadius: BorderRadius.circular(12),
           borderSide: const BorderSide(color: line),
@@ -94,7 +115,7 @@ class AppTheme {
           elevation: 0,
           padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 14),
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: GoogleFonts.manrope(fontWeight: FontWeight.w800),
+          textStyle: _text(fontWeight: FontWeight.w800),
         ),
       ),
       filledButtonTheme: FilledButtonThemeData(
@@ -102,7 +123,7 @@ class AppTheme {
           backgroundColor: brandGreenDark,
           foregroundColor: Colors.white,
           shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
-          textStyle: GoogleFonts.manrope(fontWeight: FontWeight.w800),
+          textStyle: _text(fontWeight: FontWeight.w800),
         ),
       ),
       outlinedButtonTheme: OutlinedButtonThemeData(
@@ -116,7 +137,7 @@ class AppTheme {
       chipTheme: ChipThemeData(
         backgroundColor: mist,
         selectedColor: brandGold.withValues(alpha: 0.22),
-        labelStyle: GoogleFonts.manrope(fontWeight: FontWeight.w700, color: ink, fontSize: 12),
+        labelStyle: _text(fontWeight: FontWeight.w700, color: ink, fontSize: 12),
         side: BorderSide.none,
         shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(8)),
       ),
@@ -124,7 +145,7 @@ class AppTheme {
         backgroundColor: brandGreenDeep,
         indicatorColor: brandGold.withValues(alpha: 0.28),
         labelTextStyle: WidgetStatePropertyAll(
-          GoogleFonts.manrope(fontWeight: FontWeight.w700, fontSize: 11, color: Colors.white),
+          _text(fontWeight: FontWeight.w700, fontSize: 11, color: Colors.white),
         ),
         iconTheme: const WidgetStatePropertyAll(IconThemeData(color: Colors.white)),
       ),

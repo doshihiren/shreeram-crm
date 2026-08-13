@@ -37,8 +37,33 @@ if (!window._flutter) {
 _flutter.buildConfig = {"engineRevision":"ef0cd000916d64fa0c5d09cc809fa7ad244a5767","builds":[{"compileTarget":"dart2js","renderer":"canvaskit","mainJsPath":"main.dart.js"}]};
 
 
-_flutter.loader.load({
-  serviceWorkerSettings: {
-    serviceWorkerVersion: "1535690753"
+// Fast boot: no service worker, CanvasKit from Google CDN, cache-busted entrypoint.
+(function () {
+  var buildId = "20260813-164809";
+  var cfg = _flutter.buildConfig || {};
+  if (cfg.builds && cfg.builds.length) {
+    cfg.builds.forEach(function (b) {
+      if (b.mainJsPath && b.mainJsPath.indexOf("?") === -1) {
+        b.mainJsPath = b.mainJsPath + "?v=" + buildId;
+      }
+    });
   }
-});
+
+  _flutter.loader.load({
+    config: {
+      // Prefer Chromium CanvasKit when available (smaller than full).
+      canvasKitVariant: "auto",
+    },
+    onEntrypointLoaded: async function (engineInitializer) {
+      var appRunner = await engineInitializer.initializeEngine();
+      var splash = document.getElementById("splash");
+      if (splash) {
+        splash.style.opacity = "0";
+        setTimeout(function () {
+          if (splash && splash.parentNode) splash.parentNode.removeChild(splash);
+        }, 280);
+      }
+      await appRunner.runApp();
+    },
+  });
+})();

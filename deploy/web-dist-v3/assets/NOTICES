@@ -2406,7 +2406,6 @@ OF THIS SOFTWARE, EVEN IF ADVISED OF THE POSSIBILITY OF SUCH DAMAGE.
 --------------------------------------------------------------------------------
 coverage
 glob
-http
 http_parser
 matcher
 path
@@ -9885,7 +9884,6 @@ FROM,OUT OF OR IN CONNECTION WITH THE MATERIALS OR THE USE OR OTHER DEALINGS
 IN THE MATERIALS.
 --------------------------------------------------------------------------------
 go_router
-google_fonts
 path_provider_android
 url_launcher_linux
 url_launcher_windows

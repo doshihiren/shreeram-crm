@@ -20,7 +20,7 @@ class BrandLogo extends StatelessWidget {
     final logo = ClipRRect(
       borderRadius: BorderRadius.circular(compact ? 6 : 8),
       child: Image.asset(
-        'assets/brand/logo-shreeram.png',
+        'assets/brand/logo-shreeram-developer.jpg',
         height: height,
         fit: BoxFit.contain,
         filterQuality: FilterQuality.high,
