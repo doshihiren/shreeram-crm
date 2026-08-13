@@ -2,10 +2,10 @@ import 'package:flutter/material.dart';
 import 'package:google_fonts/google_fonts.dart';
 
 class AppTheme {
-  // ShreeRam logo: deep forest green + metallic gold
-  static const brandGreen = Color(0xFF1B8F35);
-  static const brandGreenDark = Color(0xFF0B5C24);
-  static const brandGreenDeep = Color(0xFF063F18);
+  // ShreeRam Developer logo: deep forest/teal green + metallic gold
+  static const brandGreen = Color(0xFF1A6B4A);
+  static const brandGreenDark = Color(0xFF0C3D32);
+  static const brandGreenDeep = Color(0xFF072821);
   static const brandGold = Color(0xFFD4AF37);
   static const brandGoldDeep = Color(0xFFB0891E);
   static const brandGoldSoft = Color(0xFFF3E4B2);

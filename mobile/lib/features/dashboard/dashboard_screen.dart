@@ -63,7 +63,7 @@ class DashboardScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
-                    const BrandLogo(height: 40, showWordmark: true, wordmarkColor: Colors.white),
+                    const BrandLogo(height: 48, showWordmark: false),
                     const SizedBox(height: 16),
                     Text(
                       isAdmin ? 'Sales command center' : 'My pipeline',

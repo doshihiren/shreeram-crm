@@ -61,12 +61,8 @@ class AppShell extends ConsumerWidget {
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
                       const Padding(
-                        padding: EdgeInsets.fromLTRB(18, 22, 18, 8),
-                        child: BrandLogo(
-                          height: 44,
-                          showWordmark: true,
-                          wordmarkColor: Colors.white,
-                        ),
+                        padding: EdgeInsets.fromLTRB(16, 22, 16, 8),
+                        child: BrandLogo(height: 52, showWordmark: false),
                       ),
                       const SizedBox(height: 18),
                       for (var i = 0; i < destinations.length; i++)
@@ -115,11 +111,9 @@ class AppShell extends ConsumerWidget {
                         child: Row(
                           children: [
                             const Expanded(
-                              child: BrandLogo(
-                                height: 34,
-                                showWordmark: true,
-                                compact: true,
-                                wordmarkColor: Colors.white,
+                              child: Align(
+                                alignment: Alignment.centerLeft,
+                                child: BrandLogo(height: 36, showWordmark: false, compact: true),
                               ),
                             ),
                             IconButton(

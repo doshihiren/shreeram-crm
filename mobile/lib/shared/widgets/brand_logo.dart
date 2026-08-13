@@ -5,7 +5,7 @@ class BrandLogo extends StatelessWidget {
   const BrandLogo({
     super.key,
     this.height = 40,
-    this.showWordmark = true,
+    this.showWordmark = false,
     this.wordmarkColor,
     this.compact = false,
   });
@@ -17,15 +17,18 @@ class BrandLogo extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final logo = Image.asset(
-      'assets/brand/logo-shreeram.png',
-      height: height,
-      fit: BoxFit.contain,
-      filterQuality: FilterQuality.high,
-      errorBuilder: (_, __, ___) => Icon(
-        Icons.apartment_rounded,
-        size: height,
-        color: wordmarkColor ?? AppTheme.brandGreenDark,
+    final logo = ClipRRect(
+      borderRadius: BorderRadius.circular(compact ? 6 : 8),
+      child: Image.asset(
+        'assets/brand/logo-shreeram.png',
+        height: height,
+        fit: BoxFit.contain,
+        filterQuality: FilterQuality.high,
+        errorBuilder: (_, __, ___) => Icon(
+          Icons.apartment_rounded,
+          size: height,
+          color: wordmarkColor ?? AppTheme.brandGreenDark,
+        ),
       ),
     );
 
@@ -51,7 +54,7 @@ class BrandLogo extends StatelessWidget {
                 ),
               ),
               Text(
-                'Groups CRM',
+                'Developer CRM',
                 style: TextStyle(
                   color: (wordmarkColor ?? AppTheme.ink).withValues(alpha: 0.72),
                   fontWeight: FontWeight.w600,

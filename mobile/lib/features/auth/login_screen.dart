@@ -89,27 +89,19 @@ class _BrandPanel extends StatelessWidget {
         crossAxisAlignment: CrossAxisAlignment.start,
         mainAxisSize: MainAxisSize.min,
         children: [
-          BrandLogo(height: compact ? 56 : 72, showWordmark: false),
-          const SizedBox(height: 16),
-          Text(
-            'ShreeRam Groups',
-            style: Theme.of(context).textTheme.displayMedium?.copyWith(
-                  color: AppTheme.brandGreenDark,
-                  fontSize: compact ? 28 : 34,
-                ),
-          ),
-          const SizedBox(height: 8),
+          BrandLogo(height: compact ? 64 : 88, showWordmark: false),
+          const SizedBox(height: 18),
           Text(
             'Lead CRM for your sales floor',
             style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.ink),
           ),
           const SizedBox(height: 10),
           Text(
-            'Board-style leads, clear Save actions, Call & WhatsApp in one place.',
+            'Pipeline board, Meta leads, notes & follow-ups — built for Shreeram Developer.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 14),
-          const StatusPill(label: 'UI build 2026-08-13-V3'),
+          const StatusPill(label: 'UI build 2026-08-13-LOGO'),
         ],
       ),
     );
