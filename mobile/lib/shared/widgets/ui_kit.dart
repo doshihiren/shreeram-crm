@@ -23,10 +23,17 @@ class SoftPanel extends StatelessWidget {
         gradient: const LinearGradient(
           begin: Alignment.topLeft,
           end: Alignment.bottomRight,
-          colors: [Color(0xFFFFFFF8), Color(0xFFEAF1EC)],
+          colors: [Color(0xFFFFFFFF), Color(0xFFF3F8F4)],
         ),
-        borderRadius: BorderRadius.circular(18),
-        border: Border.all(color: AppTheme.forest.withValues(alpha: 0.08)),
+        borderRadius: BorderRadius.circular(16),
+        border: Border.all(color: AppTheme.line),
+        boxShadow: [
+          BoxShadow(
+            color: AppTheme.brandGreenDark.withValues(alpha: 0.04),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
       ),
       child: child,
     );

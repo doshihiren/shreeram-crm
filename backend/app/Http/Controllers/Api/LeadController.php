@@ -28,7 +28,7 @@ class LeadController extends Controller
         $perPage = min((int) $request->integer('per_page', 20), 50);
 
         $query = Lead::query()
-            ->with(['source', 'stage', 'assignee', 'propertyType', 'propertyConfiguration', 'purpose'])
+            ->with(['source', 'stage', 'assignee', 'propertyType', 'propertyConfiguration', 'purpose', 'metaAttribution'])
             ->when(! $user->canViewAllLeads(), function ($q) use ($user) {
                 $q->where(function ($inner) use ($user) {
                     $inner->where('assigned_to', $user->id)

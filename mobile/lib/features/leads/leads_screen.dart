@@ -776,6 +776,20 @@ class _LeadCard extends StatelessWidget {
                 const SizedBox(height: 8),
                 Row(
                   children: [
+                    if ('${lead['platform'] ?? ''}'.isNotEmpty) ...[
+                      Container(
+                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
+                        decoration: BoxDecoration(
+                          color: AppTheme.mist,
+                          borderRadius: BorderRadius.circular(6),
+                        ),
+                        child: Text(
+                          AppTheme.platformLabel('${lead['platform']}'),
+                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppTheme.brandGreenDark),
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                    ],
                     Expanded(
                       child: Text(
                         '${lead['source']?['name'] ?? '—'}',

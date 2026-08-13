@@ -10,6 +10,7 @@ import 'package:shreeram_crm/features/leads/leads_screen.dart';
 import 'package:shreeram_crm/features/meta/meta_connection_screen.dart';
 import 'package:shreeram_crm/features/shell/app_shell.dart';
 import 'package:shreeram_crm/features/site_visits/site_visits_screen.dart';
+import 'package:shreeram_crm/features/stages/stages_settings_screen.dart';
 
 final appRouterProvider = Provider<GoRouter>((ref) {
   final auth = ref.watch(authControllerProvider);
@@ -24,6 +25,9 @@ final appRouterProvider = Provider<GoRouter>((ref) {
       if (!loggedIn && !onLogin) return '/login';
       if (loggedIn && onLogin) return '/dashboard';
       if (loggedIn && state.matchedLocation.startsWith('/meta') && !isAdmin) {
+        return '/dashboard';
+      }
+      if (loggedIn && state.matchedLocation.startsWith('/stages') && !isAdmin) {
         return '/dashboard';
       }
       return null;
@@ -48,6 +52,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/follow-ups', builder: (context, state) => const FollowUpsScreen()),
           GoRoute(path: '/site-visits', builder: (context, state) => const SiteVisitsScreen()),
           GoRoute(path: '/meta', builder: (context, state) => const MetaConnectionScreen()),
+          GoRoute(path: '/stages', builder: (context, state) => const StagesSettingsScreen()),
         ],
       ),
     ],

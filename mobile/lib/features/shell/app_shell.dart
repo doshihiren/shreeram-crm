@@ -14,7 +14,8 @@ class AppShell extends ConsumerWidget {
     if (location.startsWith('/leads')) return 1;
     if (location.startsWith('/follow-ups')) return 2;
     if (location.startsWith('/site-visits')) return 3;
-    if (location.startsWith('/meta')) return isAdmin ? 4 : 0;
+    if (location.startsWith('/stages')) return isAdmin ? 4 : 0;
+    if (location.startsWith('/meta')) return isAdmin ? 5 : 0;
     return 0;
   }
 
@@ -25,10 +26,11 @@ class AppShell extends ConsumerWidget {
     final location = GoRouterState.of(context).uri.toString();
     final wide = MediaQuery.sizeOf(context).width >= 980;
     final destinations = <_NavItem>[
-      const _NavItem('/dashboard', Icons.dashboard_outlined, 'Dashboard'),
-      const _NavItem('/leads', Icons.people_outline, 'Leads'),
+      const _NavItem('/dashboard', Icons.dashboard_outlined, 'Home'),
+      const _NavItem('/leads', Icons.view_kanban_outlined, 'Leads'),
       const _NavItem('/follow-ups', Icons.event_available_outlined, 'Follow-ups'),
       const _NavItem('/site-visits', Icons.home_work_outlined, 'Site visits'),
+      if (isAdmin) const _NavItem('/stages', Icons.tune_rounded, 'Statuses'),
       if (isAdmin) const _NavItem('/meta', Icons.hub_outlined, 'Meta'),
     ];
     final selected = _indexFor(location, isAdmin).clamp(0, destinations.length - 1);
@@ -39,7 +41,7 @@ class AppShell extends ConsumerWidget {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [AppTheme.limestone, AppTheme.mist],
+            colors: [Color(0xFFF3F7F4), Color(0xFFE7F0E9), Color(0xFFF7F2E3)],
           ),
         ),
         child: Row(
@@ -51,7 +53,7 @@ class AppShell extends ConsumerWidget {
                   gradient: LinearGradient(
                     begin: Alignment.topCenter,
                     end: Alignment.bottomCenter,
-                    colors: [AppTheme.forest, AppTheme.forestMid],
+                    colors: [AppTheme.brandGreenDeep, AppTheme.brandGreenDark, Color(0xFF0F6B28)],
                   ),
                 ),
                 child: SafeArea(

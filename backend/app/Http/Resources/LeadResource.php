@@ -12,6 +12,7 @@ class LeadResource extends JsonResource
     {
         $user = $request->user();
         $canViewMeta = $user?->hasPermission('meta.view_attribution') ?? false;
+        $meta = $this->relationLoaded('metaAttribution') ? $this->metaAttribution : null;
 
         return [
             'id' => $this->id,
@@ -29,6 +30,7 @@ class LeadResource extends JsonResource
                 'code' => $this->stage->code,
                 'name' => $this->stage->name,
                 'is_lost' => $this->stage->is_lost,
+                'color' => $this->stage->color,
             ]),
             'property_type' => $this->whenLoaded('propertyType', fn () => $this->propertyType ? [
                 'id' => $this->propertyType->id,
@@ -59,22 +61,66 @@ class LeadResource extends JsonResource
             'lost_reason' => $this->lost_reason,
             'created_at' => $this->created_at?->toIso8601String(),
             'updated_at' => $this->updated_at?->toIso8601String(),
+            // Always useful for sales: Meta form Q&A + platform
+            'platform' => $meta?->platform,
+            'form_answers' => $meta ? $this->formatFormAnswers($meta->raw_field_data) : [],
             'meta_attribution' => $this->when(
-                $canViewMeta && $this->relationLoaded('metaAttribution') && $this->metaAttribution,
+                $canViewMeta && $meta,
                 fn () => [
-                    'page_id' => $this->metaAttribution->page_id,
-                    'page_name' => $this->metaAttribution->page_name,
-                    'form_id' => $this->metaAttribution->form_id,
-                    'form_name' => $this->metaAttribution->form_name,
-                    'campaign_id' => $this->metaAttribution->campaign_id,
-                    'campaign_name' => $this->metaAttribution->campaign_name,
-                    'adset_id' => $this->metaAttribution->adset_id,
-                    'adset_name' => $this->metaAttribution->adset_name,
-                    'ad_id' => $this->metaAttribution->ad_id,
-                    'ad_name' => $this->metaAttribution->ad_name,
-                    'leadgen_id' => $this->metaAttribution->leadgen_id,
+                    'page_id' => $meta->page_id,
+                    'page_name' => $meta->page_name,
+                    'form_id' => $meta->form_id,
+                    'form_name' => $meta->form_name,
+                    'campaign_id' => $meta->campaign_id,
+                    'campaign_name' => $meta->campaign_name,
+                    'adset_id' => $meta->adset_id,
+                    'adset_name' => $meta->adset_name,
+                    'ad_id' => $meta->ad_id,
+                    'ad_name' => $meta->ad_name,
+                    'leadgen_id' => $meta->leadgen_id,
+                    'platform' => $meta->platform,
+                    'is_organic' => $meta->is_organic,
+                    'raw_field_data' => $meta->raw_field_data,
                 ]
             ),
         ];
+    }
+
+    /**
+     * @param  mixed  $raw
+     * @return list<array{question: string, answer: string}>
+     */
+    private function formatFormAnswers(mixed $raw): array
+    {
+        if (! is_array($raw)) {
+            return [];
+        }
+
+        $out = [];
+        foreach ($raw as $field) {
+            if (! is_array($field)) {
+                continue;
+            }
+            $name = trim((string) ($field['name'] ?? ''));
+            if ($name === '' || $name === 'inbox_url') {
+                continue;
+            }
+            $values = $field['values'] ?? [];
+            $answer = is_array($values) ? implode(', ', array_map('strval', $values)) : (string) $values;
+            $out[] = [
+                'question' => $this->humanizeQuestion($name),
+                'answer' => $answer,
+            ];
+        }
+
+        return $out;
+    }
+
+    private function humanizeQuestion(string $name): string
+    {
+        $name = str_replace(['_', '?'], [' ', ''], $name);
+        $name = preg_replace('/\s+/', ' ', $name) ?? $name;
+
+        return ucwords(trim($name));
     }
 }

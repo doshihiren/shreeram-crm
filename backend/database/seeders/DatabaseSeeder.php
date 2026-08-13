@@ -35,16 +35,13 @@ class DatabaseSeeder extends Seeder
         }
 
         $stages = [
-            ['code' => 'NEW_LEAD', 'name' => 'New Lead', 'sort_order' => 1],
-            ['code' => 'CONTACTED', 'name' => 'Contacted', 'sort_order' => 2],
-            ['code' => 'INTERESTED', 'name' => 'Interested', 'sort_order' => 3],
-            ['code' => 'SITE_VISIT_PLANNED', 'name' => 'Site Visit Planned', 'sort_order' => 4],
-            ['code' => 'SITE_VISIT_DONE', 'name' => 'Site Visit Done', 'sort_order' => 5],
-            ['code' => 'FOLLOW_UP', 'name' => 'Follow Up', 'sort_order' => 6],
-            ['code' => 'NEGOTIATION', 'name' => 'Negotiation', 'sort_order' => 7],
-            ['code' => 'BOOKED', 'name' => 'Booked', 'sort_order' => 8, 'is_terminal' => true],
-            ['code' => 'CLOSED', 'name' => 'Closed', 'sort_order' => 9, 'is_terminal' => true],
-            ['code' => 'LOST', 'name' => 'Lost', 'sort_order' => 100, 'is_lost' => true, 'is_terminal' => true],
+            ['code' => 'NEW_LEAD', 'name' => 'New Lead', 'sort_order' => 1, 'color' => '#2391CB'],
+            ['code' => 'CALL_DONE', 'name' => 'Call Done', 'sort_order' => 2, 'color' => '#7C5CFC'],
+            ['code' => 'CALL_NOTE_RECEIVED', 'name' => 'Call Note received', 'sort_order' => 3, 'color' => '#EF7D3B'],
+            ['code' => 'SITE_VISIT_BOOKED', 'name' => 'Site Visit Booked', 'sort_order' => 4, 'color' => '#B08020'],
+            ['code' => 'SITE_VISIT_DONE', 'name' => 'Site Visit Done', 'sort_order' => 5, 'color' => '#0F9F8A'],
+            ['code' => 'UNIT_BOOKED', 'name' => 'Unit Booked', 'sort_order' => 6, 'color' => '#0E7A2F', 'is_terminal' => true],
+            ['code' => 'LOST', 'name' => 'Lost', 'sort_order' => 100, 'color' => '#D62D27', 'is_lost' => true, 'is_terminal' => true],
         ];
         foreach ($stages as $row) {
             LeadStage::query()->updateOrCreate(
@@ -52,6 +49,8 @@ class DatabaseSeeder extends Seeder
                 $row + ['is_active' => true, 'is_lost' => $row['is_lost'] ?? false, 'is_terminal' => $row['is_terminal'] ?? false]
             );
         }
+        // Keep legacy codes inactive if present from older installs.
+        LeadStage::query()->whereNotIn('code', collect($stages)->pluck('code'))->update(['is_active' => false]);
 
         foreach ([
             ['code' => 'APARTMENT', 'name' => 'Apartment', 'sort_order' => 1],

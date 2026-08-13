@@ -11,8 +11,8 @@ git pull origin cursor/crm-implementation-523b
 echo "COMMIT=$(git rev-parse --short HEAD)"
 test -f deploy/web-dist-v3/index.html
 grep -n 'base href="/shreeram-crm/v3/"' deploy/web-dist-v3/index.html
-grep -n "UI build 2026-08-11-V3" deploy/web-dist-v3/main.dart.js | head -1
-grep -n "Pipeline board" deploy/web-dist-v3/main.dart.js | head -1
+grep -n "UI build 2026-08-13-V3" deploy/web-dist-v3/main.dart.js | head -1
+grep -n "Pipeline board\|Sales command center\|All statuses" deploy/web-dist-v3/main.dart.js | head -1
 
 rm -rf backend/public/app-v3
 mkdir -p backend/public/app-v3

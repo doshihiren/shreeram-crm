@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 import 'package:shreeram_crm/core/auth/auth_controller.dart';
 import 'package:shreeram_crm/core/network/api_client.dart';
 import 'package:shreeram_crm/core/theme/app_theme.dart';
+import 'package:shreeram_crm/shared/widgets/brand_logo.dart';
 import 'package:shreeram_crm/shared/widgets/ui_kit.dart';
 
 final dashboardProvider = FutureProvider<Map<String, dynamic>>((ref) async {
@@ -30,6 +31,7 @@ class DashboardScreen extends ConsumerWidget {
     final auth = ref.watch(authControllerProvider).user;
     final async = ref.watch(dashboardProvider);
     final metaAsync = ref.watch(metaStatusProvider);
+    final isAdmin = auth?.isStaffAdmin ?? false;
 
     return async.when(
       loading: () => const Center(child: CircularProgressIndicator()),
@@ -39,7 +41,6 @@ class DashboardScreen extends ConsumerWidget {
             .map((e) => Map<String, dynamic>.from(e as Map))
             .toList();
         final total = data['total_leads'] ?? 0;
-        final isAdmin = auth?.isStaffAdmin ?? false;
 
         return RefreshIndicator(
           onRefresh: () async {
@@ -47,189 +48,174 @@ class DashboardScreen extends ConsumerWidget {
             ref.invalidate(metaStatusProvider);
           },
           child: ListView(
-            padding: const EdgeInsets.fromLTRB(24, 8, 24, 40),
+            padding: const EdgeInsets.fromLTRB(20, 12, 20, 40),
             children: [
-              FadeSlideIn(
+              Container(
+                padding: const EdgeInsets.all(20),
+                decoration: BoxDecoration(
+                  gradient: const LinearGradient(
+                    begin: Alignment.topLeft,
+                    end: Alignment.bottomRight,
+                    colors: [AppTheme.brandGreenDeep, AppTheme.brandGreenDark, Color(0xFF146B2C)],
+                  ),
+                  borderRadius: BorderRadius.circular(20),
+                ),
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
+                    const BrandLogo(height: 40, showWordmark: true, wordmarkColor: Colors.white),
+                    const SizedBox(height: 16),
                     Text(
-                      isAdmin ? 'Command center' : 'My workspace',
-                      style: Theme.of(context).textTheme.headlineLarge,
+                      isAdmin ? 'Sales command center' : 'My pipeline',
+                      style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: Colors.white),
                     ),
                     const SizedBox(height: 6),
                     Text(
-                      isAdmin
-                          ? 'Live pipeline health across your sales team.'
-                          : 'Focus on the leads assigned to you today.',
-                      style: Theme.of(context).textTheme.bodyMedium,
+                      'Status overview · follow-ups · Meta leads',
+                      style: TextStyle(color: Colors.white.withValues(alpha: 0.78), fontWeight: FontWeight.w600),
+                    ),
+                    const SizedBox(height: 18),
+                    Row(
+                      children: [
+                        _HeroMetric(label: 'Total leads', value: '$total'),
+                        const SizedBox(width: 12),
+                        _HeroMetric(label: "Today's new", value: '${data['today_new_leads']}'),
+                        const SizedBox(width: 12),
+                        _HeroMetric(label: 'Overdue', value: '${data['overdue_follow_ups']}', alert: true),
+                      ],
                     ),
                   ],
                 ),
               ),
-              const SizedBox(height: 22),
-              FadeSlideIn(
-                delay: const Duration(milliseconds: 40),
-                child: SoftPanel(
-                  padding: const EdgeInsets.all(24),
-                  child: LayoutBuilder(
-                    builder: (context, constraints) {
-                      final wide = constraints.maxWidth > 640;
-                      return Flex(
-                        direction: wide ? Axis.horizontal : Axis.vertical,
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Expanded(
-                            flex: wide ? 2 : 0,
+              const SizedBox(height: 18),
+              Row(
+                children: [
+                  Expanded(
+                    child: Text('All statuses', style: Theme.of(context).textTheme.headlineSmall),
+                  ),
+                  TextButton(onPressed: () => context.go('/leads'), child: const Text('Open board')),
+                  if (isAdmin)
+                    TextButton(onPressed: () => context.go('/stages'), child: const Text('Edit statuses')),
+                ],
+              ),
+              const SizedBox(height: 4),
+              Text(
+                'Tap a status to open those leads. Admin can rename/add statuses anytime.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 14),
+              LayoutBuilder(
+                builder: (context, c) {
+                  final w = c.maxWidth;
+                  final cross = w >= 1100 ? 4 : (w >= 700 ? 3 : 2);
+                  return GridView.builder(
+                    shrinkWrap: true,
+                    physics: const NeverScrollableScrollPhysics(),
+                    itemCount: stages.length,
+                    gridDelegate: SliverGridDelegateWithFixedCrossAxisCount(
+                      crossAxisCount: cross,
+                      mainAxisSpacing: 12,
+                      crossAxisSpacing: 12,
+                      childAspectRatio: 1.35,
+                    ),
+                    itemBuilder: (context, i) {
+                      final stage = stages[i];
+                      final code = '${stage['code'] ?? ''}';
+                      final color = AppTheme.stageColor(code);
+                      return Material(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(16),
+                        child: InkWell(
+                          borderRadius: BorderRadius.circular(16),
+                          onTap: () => context.go('/leads?stage_id=${stage['id']}'),
+                          child: Container(
+                            padding: const EdgeInsets.all(16),
+                            decoration: BoxDecoration(
+                              borderRadius: BorderRadius.circular(16),
+                              border: Border.all(color: AppTheme.line),
+                            ),
                             child: Column(
                               crossAxisAlignment: CrossAxisAlignment.start,
                               children: [
-                                Text('Total leads', style: Theme.of(context).textTheme.titleMedium),
-                                const SizedBox(height: 8),
-                                Text(
-                                  '$total',
-                                  style: Theme.of(context).textTheme.displayMedium?.copyWith(color: AppTheme.forest),
+                                Container(
+                                  width: 10,
+                                  height: 10,
+                                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                                 ),
-                                const SizedBox(height: 8),
+                                const Spacer(),
                                 Text(
-                                  total == 0
-                                      ? 'No leads yet. Connect Meta or add a lead to start the funnel.'
-                                      : 'Excludes duplicate submissions from funnel totals.',
+                                  '${stage['count'] ?? 0}',
+                                  style: Theme.of(context).textTheme.headlineMedium?.copyWith(color: color),
+                                ),
+                                const SizedBox(height: 4),
+                                Text(
+                                  '${stage['name']}',
+                                  maxLines: 2,
+                                  overflow: TextOverflow.ellipsis,
+                                  style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 13),
+                                ),
+                              ],
+                            ),
+                          ),
+                        ),
+                      );
+                    },
+                  );
+                },
+              ),
+              if (isAdmin) ...[
+                const SizedBox(height: 22),
+                metaAsync.when(
+                  loading: () => const SizedBox.shrink(),
+                  error: (_, __) => const SizedBox.shrink(),
+                  data: (meta) {
+                    final connected = meta?['status'] == 'connected';
+                    return SoftPanel(
+                      onTap: () => context.go('/meta'),
+                      child: Row(
+                        children: [
+                          Container(
+                            width: 46,
+                            height: 46,
+                            decoration: BoxDecoration(
+                              color: AppTheme.brandGold.withValues(alpha: 0.18),
+                              borderRadius: BorderRadius.circular(14),
+                            ),
+                            child: const Icon(Icons.hub_outlined, color: AppTheme.brandGoldDeep),
+                          ),
+                          const SizedBox(width: 12),
+                          Expanded(
+                            child: Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                Text('Meta Lead Ads', style: Theme.of(context).textTheme.titleMedium),
+                                Text(
+                                  connected
+                                      ? 'Live · ${meta?['page_name'] ?? 'connected'}'
+                                      : 'Connect webhook to receive Facebook / Instagram leads',
                                   style: Theme.of(context).textTheme.bodyMedium,
                                 ),
                               ],
                             ),
                           ),
-                          if (wide) const SizedBox(width: 24) else const SizedBox(height: 18),
-                          Expanded(
-                            child: Wrap(
-                              spacing: 10,
-                              runSpacing: 10,
-                              children: [
-                                _MiniStat(label: "Today's new", value: '${data['today_new_leads']}'),
-                                _MiniStat(label: 'Follow-ups', value: '${data['today_follow_ups']}'),
-                                _MiniStat(label: 'Site visits', value: '${data['today_site_visits']}'),
-                                _MiniStat(label: 'Overdue', value: '${data['overdue_follow_ups']}', alert: true),
-                              ],
-                            ),
-                          ),
+                          StatusPill(label: connected ? 'Live' : 'Setup', positive: connected),
                         ],
-                      );
-                    },
-                  ),
-                ),
-              ),
-              if (isAdmin) ...[
-                const SizedBox(height: 18),
-                FadeSlideIn(
-                  delay: const Duration(milliseconds: 80),
-                  child: metaAsync.when(
-                    loading: () => const SizedBox.shrink(),
-                    error: (_, __) => const SizedBox.shrink(),
-                    data: (meta) {
-                      final connected = meta?['status'] == 'connected';
-                      return SoftPanel(
-                        onTap: () => context.go('/meta'),
-                        child: Row(
-                          children: [
-                            Container(
-                              width: 48,
-                              height: 48,
-                              decoration: BoxDecoration(
-                                color: AppTheme.forest.withValues(alpha: 0.08),
-                                borderRadius: BorderRadius.circular(14),
-                              ),
-                              child: const Icon(Icons.hub_outlined, color: AppTheme.forest),
-                            ),
-                            const SizedBox(width: 14),
-                            Expanded(
-                              child: Column(
-                                crossAxisAlignment: CrossAxisAlignment.start,
-                                children: [
-                                  Text('Meta Lead Ads', style: Theme.of(context).textTheme.titleMedium),
-                                  const SizedBox(height: 4),
-                                  Text(
-                                    connected
-                                        ? 'Webhook connected${meta?['page_name'] != null ? ' · ${meta!['page_name']}' : ''}'
-                                        : 'Connect webhook to receive Facebook lead forms automatically.',
-                                    style: Theme.of(context).textTheme.bodyMedium,
-                                  ),
-                                ],
-                              ),
-                            ),
-                            StatusPill(label: connected ? 'Live' : 'Setup needed', positive: connected),
-                            const SizedBox(width: 8),
-                            const Icon(Icons.chevron_right_rounded, color: AppTheme.muted),
-                          ],
-                        ),
-                      );
-                    },
-                  ),
+                      ),
+                    );
+                  },
                 ),
               ],
-              const SizedBox(height: 28),
-              FadeSlideIn(
-                delay: const Duration(milliseconds: 120),
-                child: SectionHeader(
-                  title: 'Pipeline by stage',
-                  subtitle: 'Counts refresh from your database.',
-                  action: TextButton(
-                    onPressed: () => context.go('/leads'),
-                    child: const Text('Open leads'),
-                  ),
-                ),
-              ),
-              const SizedBox(height: 12),
-              FadeSlideIn(
-                delay: const Duration(milliseconds: 140),
-                child: Wrap(
-                  spacing: 12,
-                  runSpacing: 12,
-                  children: [
-                    for (final stage in stages)
-                      _StageTile(
-                        name: '${stage['name']}',
-                        count: stage['count'] as int? ?? 0,
-                        lost: stage['is_lost'] == true,
-                        onTap: () => context.go('/leads?stage_id=${stage['id']}'),
-                      ),
-                  ],
-                ),
-              ),
-              const SizedBox(height: 28),
-              FadeSlideIn(
-                delay: const Duration(milliseconds: 180),
-                child: SectionHeader(
-                  title: 'Quick actions',
-                  subtitle: isAdmin ? 'Operate the floor without leaving this screen.' : 'Stay on top of outreach.',
-                ),
-              ),
+              const SizedBox(height: 22),
+              Text('Quick actions', style: Theme.of(context).textTheme.headlineSmall),
               const SizedBox(height: 12),
               Wrap(
                 spacing: 12,
                 runSpacing: 12,
                 children: [
-                  _ActionTile(
-                    icon: Icons.person_add_alt_1_rounded,
-                    label: 'Add lead',
-                    onTap: () => context.go('/leads?create=1'),
-                  ),
-                  _ActionTile(
-                    icon: Icons.event_available_rounded,
-                    label: 'Follow-ups',
-                    onTap: () => context.go('/follow-ups'),
-                  ),
-                  if (isAdmin)
-                    _ActionTile(
-                      icon: Icons.hub_outlined,
-                      label: 'Meta webhook',
-                      onTap: () => context.go('/meta'),
-                    ),
-                  _ActionTile(
-                    icon: Icons.home_work_outlined,
-                    label: 'Site visits',
-                    onTap: () => context.go('/site-visits'),
-                  ),
+                  _ActionChip(icon: Icons.person_add_alt_1_rounded, label: 'Add lead', onTap: () => context.go('/leads?create=1')),
+                  _ActionChip(icon: Icons.event_available_rounded, label: 'Follow-ups', onTap: () => context.go('/follow-ups')),
+                  _ActionChip(icon: Icons.home_work_outlined, label: 'Site visits', onTap: () => context.go('/site-visits')),
+                  if (isAdmin) _ActionChip(icon: Icons.tune_rounded, label: 'Statuses', onTap: () => context.go('/stages')),
                 ],
               ),
             ],
@@ -240,70 +226,34 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
-class _MiniStat extends StatelessWidget {
-  const _MiniStat({required this.label, required this.value, this.alert = false});
-
+class _HeroMetric extends StatelessWidget {
+  const _HeroMetric({required this.label, required this.value, this.alert = false});
   final String label;
   final String value;
   final bool alert;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: 140,
-      padding: const EdgeInsets.all(14),
-      decoration: BoxDecoration(
-        color: Colors.white.withValues(alpha: 0.75),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.forest.withValues(alpha: 0.06)),
-      ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          Text(label, style: Theme.of(context).textTheme.bodyMedium),
-          const SizedBox(height: 8),
-          Text(
-            value,
-            style: Theme.of(context).textTheme.headlineSmall?.copyWith(
-                  color: alert && value != '0' ? AppTheme.danger : AppTheme.forest,
-                ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _StageTile extends StatelessWidget {
-  const _StageTile({
-    required this.name,
-    required this.count,
-    required this.onTap,
-    this.lost = false,
-  });
-
-  final String name;
-  final int count;
-  final bool lost;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return SoftPanel(
-      onTap: onTap,
-      padding: const EdgeInsets.all(16),
-      child: SizedBox(
-        width: 150,
+    return Expanded(
+      child: Container(
+        padding: const EdgeInsets.all(12),
+        decoration: BoxDecoration(
+          color: Colors.white.withValues(alpha: 0.1),
+          borderRadius: BorderRadius.circular(12),
+          border: Border.all(color: AppTheme.brandGold.withValues(alpha: 0.35)),
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            Text(name, style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 10),
+            Text(label, style: TextStyle(color: Colors.white.withValues(alpha: 0.75), fontSize: 11, fontWeight: FontWeight.w600)),
+            const SizedBox(height: 6),
             Text(
-              '$count',
-              style: Theme.of(context).textTheme.headlineMedium?.copyWith(
-                    color: lost ? AppTheme.danger : AppTheme.forest,
-                  ),
+              value,
+              style: TextStyle(
+                color: alert && value != '0' ? const Color(0xFFFFCDD2) : AppTheme.brandGoldSoft,
+                fontWeight: FontWeight.w800,
+                fontSize: 22,
+              ),
             ),
           ],
         ),
@@ -312,26 +262,34 @@ class _StageTile extends StatelessWidget {
   }
 }
 
-class _ActionTile extends StatelessWidget {
-  const _ActionTile({required this.icon, required this.label, required this.onTap});
-
+class _ActionChip extends StatelessWidget {
+  const _ActionChip({required this.icon, required this.label, required this.onTap});
   final IconData icon;
   final String label;
   final VoidCallback onTap;
 
   @override
   Widget build(BuildContext context) {
-    return SoftPanel(
-      onTap: onTap,
-      padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 16),
-      child: SizedBox(
-        width: 160,
-        child: Row(
-          children: [
-            Icon(icon, color: AppTheme.forest),
-            const SizedBox(width: 10),
-            Expanded(child: Text(label, style: Theme.of(context).textTheme.titleMedium)),
-          ],
+    return Material(
+      color: Colors.white,
+      borderRadius: BorderRadius.circular(14),
+      child: InkWell(
+        onTap: onTap,
+        borderRadius: BorderRadius.circular(14),
+        child: Container(
+          width: 160,
+          padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 14),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: AppTheme.line),
+          ),
+          child: Row(
+            children: [
+              Icon(icon, color: AppTheme.brandGreenDark, size: 20),
+              const SizedBox(width: 8),
+              Expanded(child: Text(label, style: const TextStyle(fontWeight: FontWeight.w700))),
+            ],
+          ),
         ),
       ),
     );

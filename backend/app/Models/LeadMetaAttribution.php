@@ -20,6 +20,8 @@ class LeadMetaAttribution extends Model
         'ad_id',
         'ad_name',
         'leadgen_id',
+        'platform',
+        'is_organic',
         'raw_field_data',
     ];
 
@@ -27,6 +29,7 @@ class LeadMetaAttribution extends Model
     {
         return [
             'raw_field_data' => 'array',
+            'is_organic' => 'boolean',
         ];
     }
 

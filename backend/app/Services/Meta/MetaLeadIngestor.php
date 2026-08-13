@@ -150,12 +150,14 @@ class MetaLeadIngestor
             'external_lead_id' => $leadgenId,
             'preferred_location' => $mapped['preferred_location'],
         ], [
-            'page_id' => $value['page_id'] ?? null,
-            'form_id' => $value['form_id'] ?? null,
-            'ad_id' => $value['ad_id'] ?? null,
-            'adset_id' => $value['adgroup_id'] ?? ($value['adset_id'] ?? null),
-            'campaign_id' => $value['campaign_id'] ?? null,
+            'page_id' => $value['page_id'] ?? ($details['page_id'] ?? null),
+            'form_id' => $value['form_id'] ?? ($details['form_id'] ?? null),
+            'ad_id' => $value['ad_id'] ?? ($details['ad_id'] ?? null),
+            'adset_id' => $value['adgroup_id'] ?? ($value['adset_id'] ?? ($details['adset_id'] ?? null)),
+            'campaign_id' => $value['campaign_id'] ?? ($details['campaign_id'] ?? null),
             'leadgen_id' => $leadgenId,
+            'platform' => $this->normalizePlatform($details['platform'] ?? null),
+            'is_organic' => array_key_exists('is_organic', $details) ? (bool) $details['is_organic'] : null,
             'raw_field_data' => $details['field_data'] ?? null,
         ]);
 
@@ -202,7 +204,7 @@ class MetaLeadIngestor
         $version = config('services.meta.api_version', 'v21.0');
         $response = Http::timeout(20)->get("https://graph.facebook.com/{$version}/{$leadgenId}", [
             'access_token' => $token,
-            'fields' => 'id,created_time,ad_id,adset_id,campaign_id,form_id,field_data,is_organic',
+            'fields' => 'id,created_time,ad_id,adset_id,campaign_id,form_id,field_data,is_organic,platform',
         ]);
 
         if (! $response->successful()) {
@@ -248,5 +250,19 @@ class MetaLeadIngestor
             'email' => $fields['email'] ?? null,
             'preferred_location' => $fields['preferred_location'] ?? $fields['city'] ?? null,
         ];
+    }
+
+    private function normalizePlatform(mixed $platform): ?string
+    {
+        if (! is_string($platform) || $platform === '') {
+            return null;
+        }
+        $p = strtolower(trim($platform));
+
+        return match ($p) {
+            'fb', 'facebook' => 'fb',
+            'ig', 'instagram' => 'ig',
+            default => $p,
+        };
     }
 }

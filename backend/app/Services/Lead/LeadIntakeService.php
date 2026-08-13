@@ -129,7 +129,7 @@ class LeadIntakeService
         } else {
             $lead->lost_reason = null;
         }
-        if ($stage->code === 'CONTACTED' && $lead->contacted_at === null) {
+        if (in_array($stage->code, ['CONTACTED', 'CALL_DONE', 'CALL_NOTE_RECEIVED'], true) && $lead->contacted_at === null) {
             $lead->contacted_at = now();
         }
         $lead->save();
