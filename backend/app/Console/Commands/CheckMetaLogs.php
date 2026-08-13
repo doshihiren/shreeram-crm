@@ -99,25 +99,40 @@ class CheckMetaLogs extends Command
 
             $this->newLine();
             $this->info('=== E) Page subscribed_apps (webhook delivery) ===');
+            $crmAppId = (string) ($connection->app_id ?: config('services.meta.app_id') ?: '');
+            $this->line('CRM configured app_id: '.($crmAppId !== '' ? $crmAppId : '(missing — save App ID in CRM Meta settings)'));
             $apps = Http::timeout(20)->get("https://graph.facebook.com/{$version}/{$connection->page_id}/subscribed_apps", [
                 'access_token' => $token,
             ]);
             $this->line('HTTP '.$apps->status().' '.substr($apps->body(), 0, 700));
             if ($apps->successful()) {
                 $hasLeadgen = false;
+                $crmAppSubscribed = false;
                 foreach ($apps->json('data') ?? [] as $app) {
                     $fields = $app['subscribed_fields'] ?? [];
-                    if (in_array('leadgen', $fields, true)) {
+                    $appId = (string) ($app['id'] ?? '');
+                    $hasThisLeadgen = in_array('leadgen', $fields, true);
+                    if ($hasThisLeadgen) {
                         $hasLeadgen = true;
                     }
-                    $this->line('  app='.($app['id'] ?? '?').' fields='.implode(',', is_array($fields) ? $fields : []));
+                    if ($crmAppId !== '' && $appId === $crmAppId && $hasThisLeadgen) {
+                        $crmAppSubscribed = true;
+                    }
+                    $mark = ($crmAppId !== '' && $appId === $crmAppId) ? ' <== CRM app' : ' <== OTHER app (not CRM)';
+                    $this->line('  app='.$appId.' name='.($app['name'] ?? '').' fields='.implode(',', is_array($fields) ? $fields : []).$mark);
                 }
                 if (! $hasLeadgen) {
-                    $this->error('Page is NOT subscribed to leadgen for this app. Real leads will not webhook in.');
-                    $this->warn('Fix with (Page token required):');
+                    $this->error('Page is NOT subscribed to leadgen. Real leads will not webhook in.');
                     $this->line('  php artisan meta:subscribe-page');
+                } elseif (! $crmAppSubscribed) {
+                    $this->error('leadgen is subscribed on a DIFFERENT app — not your CRM app.');
+                    $this->warn('Demo tests on CRM app work, but LIVE leads go to the other app.');
+                    $this->warn('Fix:');
+                    $this->line('  1) CRM Meta settings: save the NEW App ID + Page token from that same new app');
+                    $this->line('  2) php artisan meta:subscribe-page');
+                    $this->line('  3) In Meta App (NEW) → Webhooks: callback URL + verify token + leadgen field');
                 } else {
-                    $this->info('OK: leadgen subscription present');
+                    $this->info('OK: CRM app is subscribed to leadgen');
                 }
             }
         }

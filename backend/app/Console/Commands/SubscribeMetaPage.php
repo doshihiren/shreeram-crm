@@ -28,7 +28,11 @@ class SubscribeMetaPage extends Command
         $version = config('services.meta.api_version', 'v21.0');
         $fields = (string) $this->option('fields');
 
+        $crmAppId = (string) ($connection->app_id ?: config('services.meta.app_id') ?: '');
+        $this->line('CRM app_id in DB: '.($crmAppId !== '' ? $crmAppId : '(missing)'));
         $this->info("POST /{$pageId}/subscribed_apps fields={$fields}");
+        $this->warn('Meta installs whichever App issued this Page token. Token must be from your NEW CRM app.');
+
         $response = Http::asForm()->timeout(30)->post(
             "https://graph.facebook.com/{$version}/{$pageId}/subscribed_apps",
             [
@@ -40,8 +44,8 @@ class SubscribeMetaPage extends Command
         $this->line('HTTP '.$response->status().' '.$response->body());
 
         if (! $response->successful()) {
-            $this->error('Subscribe failed. Token must be a Page token with pages_manage_metadata.');
-            $this->line('Also confirm the NEW Meta App is installed on the Page and webhook callback URL is set.');
+            $this->error('Subscribe failed. Token must be a Page token with pages_manage_metadata from the NEW app.');
+            $this->line('Also set Webhooks on the NEW app: callback + verify token + leadgen.');
 
             return self::FAILURE;
         }
@@ -53,7 +57,27 @@ class SubscribeMetaPage extends Command
         $this->info('Current subscribed_apps:');
         $this->line('HTTP '.$check->status().' '.$check->body());
 
-        $this->info('Done. New real form submits should POST to your webhook now.');
+        $crmOk = false;
+        foreach ($check->json('data') ?? [] as $app) {
+            $appId = (string) ($app['id'] ?? '');
+            $fieldsArr = $app['subscribed_fields'] ?? [];
+            $line = '  app='.$appId.' name='.($app['name'] ?? '').' fields='.implode(',', is_array($fieldsArr) ? $fieldsArr : []);
+            if ($crmAppId !== '' && $appId === $crmAppId) {
+                $crmOk = in_array('leadgen', $fieldsArr, true);
+                $line .= ' <== CRM app';
+            }
+            $this->line($line);
+        }
+
+        if ($crmAppId !== '' && ! $crmOk) {
+            $this->error("CRM app {$crmAppId} still not subscribed.");
+            $this->warn('Your saved Page token is probably from another app (e.g. Shreeram Mobile App).');
+            $this->warn('Generate Page token again FROM the new CRM app in Graph API Explorer, save it in CRM Meta, re-run this.');
+
+            return self::FAILURE;
+        }
+
+        $this->info('Done. New real form submits should POST to your CRM webhook now.');
         $this->line('Verify: php artisan meta:check-logs');
 
         return self::SUCCESS;
