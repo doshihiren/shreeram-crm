@@ -37,6 +37,7 @@ NEXT (one command — no manual nano):
 Then open Incognito:
   https://aweliontech.com/shreeram-crm/v3/
 
-Login: owner@shreeram.local / ChangeMeOwner1!
+Expect pill: UI build 2026-08-13-QUICKLOGIN
+Tap: Owner / Admin / Sales  (no password typing)
 Expect: UI build 2026-08-13-QUICKLOGIN + Owner/Admin/Sales buttons
 EOF
