@@ -63,6 +63,10 @@ class ImportMetaLeads extends Command
                 .($until ? " until={$until}" : '')
                 .'…');
             $ids = collect($this->fetchFormLeadIds((string) $formId, $token, $limit, $since, $until));
+            if ($ids->isEmpty() && $since) {
+                $this->warn("No leads matched --since={$since}. Retrying without date filter…");
+                $ids = collect($this->fetchFormLeadIds((string) $formId, $token, $limit, null, null));
+            }
             if ($ids->isEmpty()) {
                 $this->warn('Form pull failed/empty.');
                 $this->warn('Run: php artisan meta:check-logs');

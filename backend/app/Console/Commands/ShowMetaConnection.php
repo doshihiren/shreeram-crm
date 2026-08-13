@@ -104,8 +104,8 @@ class ShowMetaConnection extends Command
 
         $this->newLine();
         $this->warn('How to read this:');
-        $this->line('- CRM app_id above must be your NEW app id (not 1088803810500980 Shreeram Mobile App).');
-        $this->line('- subscribed_apps must include that SAME app_id with field leadgen.');
+        $this->line('- app_id + subscribed_apps leadgen must be the SAME app (your CRM Meta app).');
+        $this->line('- /me must be the Page (Shreeram Developer), not a person name.');
         $this->line('- Full secrets: php artisan meta:show-connection --reveal');
 
         return self::SUCCESS;
