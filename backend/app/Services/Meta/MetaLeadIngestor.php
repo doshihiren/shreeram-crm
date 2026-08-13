@@ -200,8 +200,9 @@ class MetaLeadIngestor
         }
 
         $version = config('services.meta.api_version', 'v21.0');
-        $response = Http::timeout(15)->get("https://graph.facebook.com/{$version}/{$leadgenId}", [
+        $response = Http::timeout(20)->get("https://graph.facebook.com/{$version}/{$leadgenId}", [
             'access_token' => $token,
+            'fields' => 'id,created_time,ad_id,adset_id,campaign_id,form_id,field_data,is_organic',
         ]);
 
         if (! $response->successful()) {

@@ -13,11 +13,13 @@ class ImportMetaLeads extends Command
     protected $signature = 'meta:import-leads
         {leadgen_ids?* : One or more Meta lead IDs (without l: prefix)}
         {--form= : Pull recent leads from this Meta form ID}
-        {--limit=100 : Max leads to pull when using --form}
+        {--limit=500 : Max leads to pull when using --form}
+        {--since= : Only leads on/after date (YYYY-MM-DD), e.g. 2026-07-01}
+        {--until= : Only leads on/before date (YYYY-MM-DD)}
         {--page= : Optional page_id for attribution}
         {--csv= : Path to Meta Lead Center export (csv/tsv) — imports by lead id}';
 
-    protected $description = 'Import real Meta leads by leadgen ID, CSV export, or form feed';
+    protected $description = 'Import real Meta leads by leadgen ID, CSV export, or form feed (supports --since for backfill)';
 
     public function handle(MetaLeadIngestor $ingestor): int
     {
@@ -54,13 +56,17 @@ class ImportMetaLeads extends Command
                 return self::FAILURE;
             }
             $limit = max(1, (int) $this->option('limit'));
-            $this->info("Pulling last {$limit} lead(s) from form {$formId}…");
-            $ids = collect($this->fetchFormLeadIds((string) $formId, $token, $limit));
+            $since = $this->option('since') ? (string) $this->option('since') : null;
+            $until = $this->option('until') ? (string) $this->option('until') : null;
+            $this->info("Pulling up to {$limit} lead(s) from form {$formId}"
+                .($since ? " since={$since}" : '')
+                .($until ? " until={$until}" : '')
+                .'…');
+            $ids = collect($this->fetchFormLeadIds((string) $formId, $token, $limit, $since, $until));
             if ($ids->isEmpty()) {
                 $this->warn('Form pull failed/empty.');
-                $this->warn('Your Facebook user likely has no role on Shreeram Developer page.');
-                $this->warn('Workaround: export leads from Meta Lead Center → php artisan meta:import-leads --csv=/path/file.csv');
-                $this->warn('Or import IDs: php artisan meta:import-leads ID1 ID2 --form='.$formId);
+                $this->warn('Run: php artisan meta:check-logs');
+                $this->warn('Workaround: export Lead Center CSV → php artisan meta:import-leads --csv=/path/file.csv');
                 if ($connection?->page_id) {
                     $this->listPageForms((string) $connection->page_id, $token);
                 }
@@ -143,8 +149,13 @@ class ImportMetaLeads extends Command
     /**
      * @return list<string>
      */
-    private function fetchFormLeadIds(string $formId, string $token, int $limit): array
-    {
+    private function fetchFormLeadIds(
+        string $formId,
+        string $token,
+        int $limit,
+        ?string $since = null,
+        ?string $until = null,
+    ): array {
         $version = config('services.meta.api_version', 'v21.0');
         $url = "https://graph.facebook.com/{$version}/{$formId}/leads";
         $ids = [];
@@ -154,16 +165,51 @@ class ImportMetaLeads extends Command
             'fields' => 'id,created_time',
         ];
 
+        // Meta filtering for time_created (unix seconds)
+        $filters = [];
+        if ($since) {
+            $filters[] = [
+                'field' => 'time_created',
+                'operator' => 'GREATER_THAN',
+                'value' => max(0, strtotime($since.' 00:00:00 UTC') - 1),
+            ];
+        }
+        if ($until) {
+            $filters[] = [
+                'field' => 'time_created',
+                'operator' => 'LESS_THAN',
+                'value' => strtotime($until.' 23:59:59 UTC') ?: time(),
+            ];
+        }
+        if ($filters !== []) {
+            $params['filtering'] = json_encode($filters);
+        }
+
+        $sinceTs = $since ? strtotime($since.' 00:00:00 UTC') : null;
+        $untilTs = $until ? strtotime($until.' 23:59:59 UTC') : null;
+
         while (count($ids) < $limit) {
-            $response = Http::timeout(30)->get($url, $params);
+            $response = Http::timeout(45)->get($url, $params);
             if (! $response->successful()) {
                 $this->error('Form leads pull failed HTTP '.$response->status().': '.$response->body());
                 break;
             }
 
             $json = $response->json() ?? [];
+            $pageHadRows = false;
             foreach ($json['data'] ?? [] as $row) {
+                $pageHadRows = true;
                 $id = (string) ($row['id'] ?? '');
+                $created = isset($row['created_time']) ? strtotime((string) $row['created_time']) : null;
+
+                // Client-side date guard (in case filtering unsupported)
+                if ($sinceTs && $created && $created < $sinceTs) {
+                    continue;
+                }
+                if ($untilTs && $created && $created > $untilTs) {
+                    continue;
+                }
+
                 if ($id !== '') {
                     $ids[] = $id;
                 }
@@ -173,14 +219,14 @@ class ImportMetaLeads extends Command
             }
 
             $next = $json['paging']['next'] ?? null;
-            if (! is_string($next) || $next === '') {
+            if (! is_string($next) || $next === '' || ! $pageHadRows) {
                 break;
             }
             $url = $next;
             $params = [];
         }
 
-        return $ids;
+        return array_values(array_unique($ids));
     }
 
     private function ensurePageToken(?MetaConnection $connection, string $token): string
