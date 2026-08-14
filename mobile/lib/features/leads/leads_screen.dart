@@ -8,29 +8,46 @@ import 'package:shreeram_crm/core/theme/app_theme.dart';
 import 'package:shreeram_crm/features/leads/stage_change_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-/// Loads ALL leads for the board (paginates until complete).
+/// Loads ALL leads for the board (paginates until complete — never stops at 50).
 final leadsBoardProvider = FutureProvider.family<Map<String, dynamic>, String?>((ref, stageId) async {
   final dio = ref.watch(dioProvider);
   final all = <Map<String, dynamic>>[];
   var page = 1;
   var lastPage = 1;
   var total = 0;
+  // Ask for max page size the API allows (backend caps at 1000).
+  const perPage = 1000;
   do {
     final res = await dio.get('/leads', queryParameters: {
-      'per_page': 200,
+      'per_page': perPage,
       'page': page,
       if (stageId != null && stageId.isNotEmpty) 'stage_id': stageId,
     });
-    final raw = res.data;
+    final raw = res.data is Map ? Map<String, dynamic>.from(res.data as Map) : <String, dynamic>{};
     final list = (raw['data'] as List<dynamic>? ?? [])
         .map((e) => Map<String, dynamic>.from(e as Map))
         .toList();
     final meta = Map<String, dynamic>.from((raw['meta'] as Map?) ?? const {});
+    final links = Map<String, dynamic>.from((raw['links'] as Map?) ?? const {});
     all.addAll(list);
-    lastPage = (meta['last_page'] as num?)?.toInt() ?? 1;
+
+    lastPage = (meta['last_page'] as num?)?.toInt()
+        ?? (meta['lastPage'] as num?)?.toInt()
+        ?? 1;
     total = (meta['total'] as num?)?.toInt() ?? all.length;
+
+    // Fallback: if meta is missing, keep going while this page was full or links.next exists.
+    final hasNextLink = links['next'] != null && '${links['next']}'.isNotEmpty && '${links['next']}' != 'null';
+    if (meta.isEmpty) {
+      if (list.length >= perPage || hasNextLink) {
+        lastPage = page + 1;
+      } else {
+        lastPage = page;
+      }
+    }
+
     page += 1;
-  } while (page <= lastPage && page <= 50);
+  } while (page <= lastPage && page <= 100);
 
   return {
     'data': all,
@@ -339,7 +356,7 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
               Align(
                 alignment: Alignment.centerLeft,
                 child: Text(
-                  'Long-press a card and drag it to another status',
+                  'Drag a lead card onto another status column · drop asks for follow-up date & remarks',
                   style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
                 ),
               ),
@@ -687,7 +704,7 @@ class _LeadCard extends StatelessWidget {
                   const SizedBox(width: 4),
                   Expanded(
                     child: Text(
-                      dragging ? 'Drop on a status' : 'Drag to move',
+                      dragging ? 'Drop on a status column' : 'Drag to another status',
                       style: const TextStyle(fontSize: 11, color: AppTheme.muted, fontWeight: FontWeight.w600),
                     ),
                   ),
@@ -718,10 +735,13 @@ class _LeadCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      child: LongPressDraggable<Map<String, dynamic>>(
+      // Immediate drag (desktop/web mouse) — no long-press required.
+      child: Draggable<Map<String, dynamic>>(
         data: lead,
+        affinity: Axis.horizontal,
         feedback: Material(
           color: Colors.transparent,
+          elevation: 8,
           child: SizedBox(width: 260, child: _cardBody(dragging: true)),
         ),
         childWhenDragging: Opacity(opacity: 0.35, child: _cardBody(dragging: false)),
