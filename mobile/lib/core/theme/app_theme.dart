@@ -159,12 +159,11 @@ class AppTheme {
       case 'CALL_NOT_RECEIVED':
         return const Color(0xFF6B7C86);
       case 'CALL_DONE':
-      case 'CONTACTED':
-        return const Color(0xFF7C5CFC);
       case 'CALL_NOTE_RECEIVED':
+      case 'CONTACTED':
       case 'INTERESTED':
       case 'FOLLOW_UP':
-        return const Color(0xFFEF7D3B);
+        return const Color(0xFF7C5CFC);
       case 'SITE_VISIT_BOOKED':
       case 'SITE_VISIT_PLANNED':
       case 'NEGOTIATION':
