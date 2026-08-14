@@ -144,7 +144,7 @@ class _BrandPanel extends StatelessWidget {
             style: Theme.of(context).textTheme.bodyMedium,
           ),
           const SizedBox(height: 14),
-          const StatusPill(label: 'UI build 2026-08-14-STAGESFIX'),
+          const StatusPill(label: 'UI build 2026-08-14-DRAGBOARD'),
         ],
       ),
     );

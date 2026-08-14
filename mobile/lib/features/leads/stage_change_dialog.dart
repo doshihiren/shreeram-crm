@@ -19,17 +19,25 @@ bool stageRequiresFollowUp(String? code) {
   return c != 'LOST' && c != 'UNIT_BOOKED';
 }
 
+bool stageRequiresRemarks(String? code) {
+  final c = (code ?? '').toUpperCase();
+  // Call Not Received: next date only — no remarks.
+  if (c == 'CALL_NOT_RECEIVED') return false;
+  return stageRequiresFollowUp(c);
+}
+
 DateTime defaultFollowUpAt({required bool nextDay}) {
   final base = nextDay ? DateTime.now().add(const Duration(days: 1)) : DateTime.now();
   return DateTime(base.year, base.month, base.day, 10, 0);
 }
 
-/// Dialog: confirm stage change + optional/required next follow-up (default 10:00) + remarks.
+/// Dialog: stage change + next follow-up (default 10:00) + remarks when required.
 Future<StageChangeResult?> showStageChangeDialog(
   BuildContext context, {
   required List<Map<String, dynamic>> stages,
   required int selectedStageId,
   String? leadName,
+  bool lockStage = false,
 }) async {
   Map<String, dynamic> selected = stages.firstWhere(
     (s) => s['id'] == selectedStageId,
@@ -40,6 +48,7 @@ Future<StageChangeResult?> showStageChangeDialog(
   var stageId = selected['id'] as int;
   var code = '${selected['code'] ?? ''}';
   var requireFollowUp = stageRequiresFollowUp(code);
+  var requireRemarks = stageRequiresRemarks(code);
   var followUp = code.toUpperCase() == 'CALL_NOT_RECEIVED'
       ? defaultFollowUpAt(nextDay: true)
       : (requireFollowUp ? defaultFollowUpAt(nextDay: false) : null);
@@ -53,38 +62,46 @@ Future<StageChangeResult?> showStageChangeDialog(
       return StatefulBuilder(
         builder: (ctx, setModal) {
           return AlertDialog(
-            title: Text(leadName == null ? 'Update status' : 'Update · $leadName'),
+            title: Text(leadName == null || leadName.isEmpty ? 'Update status' : 'Update · $leadName'),
             content: SizedBox(
               width: 420,
               child: Column(
                 mainAxisSize: MainAxisSize.min,
                 crossAxisAlignment: CrossAxisAlignment.stretch,
                 children: [
-                  DropdownButtonFormField<int>(
-                    value: stageId,
-                    decoration: const InputDecoration(labelText: 'Status'),
-                    items: [
-                      for (final s in stages)
-                        DropdownMenuItem(value: s['id'] as int, child: Text('${s['name']}')),
-                    ],
-                    onChanged: (v) {
-                      if (v == null) return;
-                      final s = stages.firstWhere((e) => e['id'] == v);
-                      setModal(() {
-                        stageId = v;
-                        code = '${s['code'] ?? ''}';
-                        requireFollowUp = stageRequiresFollowUp(code);
-                        if (code.toUpperCase() == 'CALL_NOT_RECEIVED') {
-                          followUp = defaultFollowUpAt(nextDay: true);
-                        } else if (requireFollowUp && followUp == null) {
-                          followUp = defaultFollowUpAt(nextDay: false);
-                        } else if (!requireFollowUp) {
-                          followUp = null;
-                        }
-                        error = null;
-                      });
-                    },
-                  ),
+                  if (lockStage)
+                    InputDecorator(
+                      decoration: const InputDecoration(labelText: 'Status'),
+                      child: Text('${selected['name']}', style: const TextStyle(fontWeight: FontWeight.w700)),
+                    )
+                  else
+                    DropdownButtonFormField<int>(
+                      value: stageId,
+                      decoration: const InputDecoration(labelText: 'Status'),
+                      items: [
+                        for (final s in stages)
+                          DropdownMenuItem(value: s['id'] as int, child: Text('${s['name']}')),
+                      ],
+                      onChanged: (v) {
+                        if (v == null) return;
+                        final s = stages.firstWhere((e) => e['id'] == v);
+                        setModal(() {
+                          stageId = v;
+                          selected = s;
+                          code = '${s['code'] ?? ''}';
+                          requireFollowUp = stageRequiresFollowUp(code);
+                          requireRemarks = stageRequiresRemarks(code);
+                          if (code.toUpperCase() == 'CALL_NOT_RECEIVED') {
+                            followUp = defaultFollowUpAt(nextDay: true);
+                          } else if (requireFollowUp && followUp == null) {
+                            followUp = defaultFollowUpAt(nextDay: false);
+                          } else if (!requireFollowUp) {
+                            followUp = null;
+                          }
+                          error = null;
+                        });
+                      },
+                    ),
                   const SizedBox(height: 12),
                   if (requireFollowUp) ...[
                     ListTile(
@@ -97,7 +114,7 @@ Future<StageChangeResult?> showStageChangeDialog(
                       ),
                       subtitle: Text(
                         code.toUpperCase() == 'CALL_NOT_RECEIVED'
-                            ? 'Defaults to tomorrow 10:00 AM'
+                            ? 'Defaults to tomorrow 10:00 AM (no remarks needed)'
                             : 'Default time 10:00 AM',
                       ),
                       trailing: const Icon(Icons.edit_calendar_outlined),
@@ -120,15 +137,17 @@ Future<StageChangeResult?> showStageChangeDialog(
                         });
                       },
                     ),
-                    const SizedBox(height: 8),
-                    TextField(
-                      controller: remarks,
-                      maxLines: 3,
-                      decoration: const InputDecoration(
-                        labelText: 'Remarks *',
-                        hintText: 'Call notes / next step',
+                    if (requireRemarks) ...[
+                      const SizedBox(height: 8),
+                      TextField(
+                        controller: remarks,
+                        maxLines: 3,
+                        decoration: const InputDecoration(
+                          labelText: 'Remarks *',
+                          hintText: 'Call notes / next step',
+                        ),
                       ),
-                    ),
+                    ],
                   ] else
                     Text(
                       'Follow-up not required for ${selected['name'] ?? code}.',
@@ -145,15 +164,13 @@ Future<StageChangeResult?> showStageChangeDialog(
               TextButton(onPressed: () => Navigator.pop(ctx), child: const Text('Cancel')),
               FilledButton(
                 onPressed: () {
-                  if (requireFollowUp) {
-                    if (followUp == null) {
-                      setModal(() => error = 'Next follow-up date is required');
-                      return;
-                    }
-                    if (remarks.text.trim().isEmpty) {
-                      setModal(() => error = 'Remarks are required');
-                      return;
-                    }
+                  if (requireFollowUp && followUp == null) {
+                    setModal(() => error = 'Next follow-up date is required');
+                    return;
+                  }
+                  if (requireRemarks && remarks.text.trim().isEmpty) {
+                    setModal(() => error = 'Remarks are required');
+                    return;
                   }
                   Navigator.pop(
                     ctx,

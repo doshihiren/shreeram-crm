@@ -8,31 +8,34 @@ import 'package:shreeram_crm/core/theme/app_theme.dart';
 import 'package:shreeram_crm/features/leads/stage_change_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
-class LeadsPageQuery {
-  const LeadsPageQuery({this.stageId, this.page = 1});
-  final String? stageId;
-  final int page;
+/// Loads ALL leads for the board (paginates until complete).
+final leadsBoardProvider = FutureProvider.family<Map<String, dynamic>, String?>((ref, stageId) async {
+  final dio = ref.watch(dioProvider);
+  final all = <Map<String, dynamic>>[];
+  var page = 1;
+  var lastPage = 1;
+  var total = 0;
+  do {
+    final res = await dio.get('/leads', queryParameters: {
+      'per_page': 200,
+      'page': page,
+      if (stageId != null && stageId.isNotEmpty) 'stage_id': stageId,
+    });
+    final raw = res.data;
+    final list = (raw['data'] as List<dynamic>? ?? [])
+        .map((e) => Map<String, dynamic>.from(e as Map))
+        .toList();
+    final meta = Map<String, dynamic>.from((raw['meta'] as Map?) ?? const {});
+    all.addAll(list);
+    lastPage = (meta['last_page'] as num?)?.toInt() ?? 1;
+    total = (meta['total'] as num?)?.toInt() ?? all.length;
+    page += 1;
+  } while (page <= lastPage && page <= 50);
 
-  @override
-  bool operator ==(Object other) =>
-      other is LeadsPageQuery && other.stageId == stageId && other.page == page;
-
-  @override
-  int get hashCode => Object.hash(stageId, page);
-}
-
-final leadsBoardProvider = FutureProvider.family<Map<String, dynamic>, LeadsPageQuery>((ref, query) async {
-  final res = await ref.watch(dioProvider).get('/leads', queryParameters: {
-    'per_page': 50,
-    'page': query.page,
-    if (query.stageId != null && query.stageId!.isNotEmpty) 'stage_id': query.stageId,
-  });
-  final raw = res.data;
-  final list = (raw['data'] as List<dynamic>? ?? [])
-      .map((e) => Map<String, dynamic>.from(e as Map))
-      .toList();
-  final meta = Map<String, dynamic>.from((raw['meta'] as Map?) ?? const {});
-  return {'data': list, 'meta': meta};
+  return {
+    'data': all,
+    'meta': {'total': total, 'loaded': all.length, 'last_page': lastPage},
+  };
 });
 
 enum _LeadsView { board, table }
@@ -51,14 +54,13 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
   String? _stageId;
   String _query = '';
   bool _createOpened = false;
-  bool _defaultStageApplied = false;
-  int _page = 1;
   _LeadsView _view = _LeadsView.board;
   final _search = TextEditingController();
 
   @override
   void initState() {
     super.initState();
+    // Board needs all columns for drag-drop; default All unless deep-linked.
     _stageId = widget.initialStageId;
     WidgetsBinding.instance.addPostFrameCallback((_) {
       if (widget.openCreate && !_createOpened) {
@@ -72,11 +74,7 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
   void didUpdateWidget(covariant LeadsScreen oldWidget) {
     super.didUpdateWidget(oldWidget);
     if (widget.initialStageId != oldWidget.initialStageId) {
-      setState(() {
-        _stageId = widget.initialStageId;
-        _page = 1;
-        _defaultStageApplied = widget.initialStageId != null;
-      });
+      setState(() => _stageId = widget.initialStageId);
     }
   }
 
@@ -86,35 +84,18 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
     super.dispose();
   }
 
-  void _applyDefaultNewLead(List<Map<String, dynamic>> stages) {
-    if (_defaultStageApplied || widget.initialStageId != null || _stageId != null) return;
-    _defaultStageApplied = true;
-    Map<String, dynamic>? neu;
-    for (final s in stages) {
-      if (s['code'] == 'NEW_LEAD') {
-        neu = s;
-        break;
-      }
-    }
-    neu ??= stages.isNotEmpty ? stages.first : null;
-    if (neu == null) return;
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      if (!mounted) return;
-      setState(() {
-        _stageId = '${neu!['id']}';
-        _page = 1;
-      });
-    });
-  }
-
   Future<void> _changeStage(Map<String, dynamic> lead, int stageId) async {
     final stages = await ref.read(stagesProvider.future);
     if (!mounted) return;
+    final currentId = lead['stage']?['id'];
+    if ('$currentId' == '$stageId') return;
+
     final result = await showStageChangeDialog(
       context,
       stages: stages,
       selectedStageId: stageId,
       leadName: '${lead['name'] ?? ''}',
+      lockStage: true,
     );
     if (result == null) return;
     try {
@@ -127,7 +108,7 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
         const SnackBar(
-          content: Text('Status updated'),
+          content: Text('Lead moved'),
           backgroundColor: AppTheme.brandGreenDark,
           behavior: SnackBarBehavior.floating,
           duration: Duration(seconds: 2),
@@ -136,7 +117,7 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
     } catch (e) {
       if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text('Status update failed: $e'), backgroundColor: AppTheme.brandRed),
+        SnackBar(content: Text('Move failed: $e'), backgroundColor: AppTheme.brandRed),
       );
     }
   }
@@ -285,7 +266,7 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
   @override
   Widget build(BuildContext context) {
     final stagesAsync = ref.watch(stagesProvider);
-    final leadsAsync = ref.watch(leadsBoardProvider(LeadsPageQuery(stageId: _stageId, page: _page)));
+    final leadsAsync = ref.watch(leadsBoardProvider(_stageId));
     final wide = MediaQuery.sizeOf(context).width >= 1100;
 
     return Column(
@@ -303,7 +284,7 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                         final total = page['meta']?['total'] ?? (page['data'] as List).length;
                         final showing = _filter(List<Map<String, dynamic>>.from(page['data'] as List)).length;
                         return Text(
-                          'Leads · $showing shown · $total total',
+                          'Leads · $showing / $total',
                           style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
                         );
                       },
@@ -354,12 +335,19 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                   decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search name or mobile', isDense: true),
                 ),
               ],
-              const SizedBox(height: 12),
+              const SizedBox(height: 8),
+              Align(
+                alignment: Alignment.centerLeft,
+                child: Text(
+                  'Long-press a card and drag it to another status',
+                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
+                ),
+              ),
+              const SizedBox(height: 10),
               stagesAsync.when(
                 loading: () => const LinearProgressIndicator(minHeight: 2),
                 error: (e, _) => Text('$e'),
                 data: (stages) {
-                  _applyDefaultNewLead(stages);
                   return SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
@@ -368,11 +356,7 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                           label: 'All',
                           selected: _stageId == null,
                           color: AppTheme.brandGreenDark,
-                          onTap: () => setState(() {
-                            _stageId = null;
-                            _page = 1;
-                            _defaultStageApplied = true;
-                          }),
+                          onTap: () => setState(() => _stageId = null),
                         ),
                         for (final stage in stages) ...[
                           const SizedBox(width: 8),
@@ -380,11 +364,7 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                             label: '${stage['name']}',
                             selected: _stageId == '${stage['id']}',
                             color: AppTheme.stageColor('${stage['code']}'),
-                            onTap: () => setState(() {
-                              _stageId = '${stage['id']}';
-                              _page = 1;
-                              _defaultStageApplied = true;
-                            }),
+                            onTap: () => setState(() => _stageId = '${stage['id']}'),
                           ),
                         ],
                       ],
@@ -402,11 +382,8 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
             error: (e, _) => Center(child: Text('Failed to load leads: $e')),
             data: (page) {
               final leads = List<Map<String, dynamic>>.from(page['data'] as List? ?? const []);
-              final meta = Map<String, dynamic>.from(page['meta'] as Map? ?? const {});
               final filtered = _filter(leads);
-              final lastPage = (meta['last_page'] as num?)?.toInt() ?? 1;
-              final currentPage = (meta['current_page'] as num?)?.toInt() ?? _page;
-              final total = (meta['total'] as num?)?.toInt() ?? filtered.length;
+              final total = (page['meta']?['total'] as num?)?.toInt() ?? filtered.length;
 
               if (filtered.isEmpty) {
                 return Center(
@@ -428,12 +405,11 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                       loading: () => const SizedBox.shrink(),
                       error: (e, _) => Text('$e'),
                       data: (stages) {
+                        // Board always shows all stage columns so drag-drop works.
                         if (_view == _LeadsView.board) {
                           return _LeadsKanban(
                             leads: filtered,
-                            stages: _stageId == null
-                                ? stages
-                                : stages.where((s) => '${s['id']}' == _stageId).toList(),
+                            stages: stages,
                             onOpen: (id) => context.go('/leads/$id'),
                             onStageChanged: _changeStage,
                           );
@@ -448,25 +424,11 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                     ),
                   ),
                   Container(
-                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 10),
-                    decoration: const BoxDecoration(
-                      color: Colors.white,
-                      border: Border(top: BorderSide(color: AppTheme.line)),
-                    ),
-                    child: Row(
-                      children: [
-                        Text('Page $currentPage of $lastPage · $total leads', style: Theme.of(context).textTheme.bodyMedium),
-                        const Spacer(),
-                        OutlinedButton(
-                          onPressed: currentPage <= 1 ? null : () => setState(() => _page = currentPage - 1),
-                          child: const Text('Previous'),
-                        ),
-                        const SizedBox(width: 8),
-                        FilledButton(
-                          onPressed: currentPage >= lastPage ? null : () => setState(() => _page = currentPage + 1),
-                          child: const Text('Next'),
-                        ),
-                      ],
+                    padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 8),
+                    color: Colors.white,
+                    child: Align(
+                      alignment: Alignment.centerLeft,
+                      child: Text('Showing ${filtered.length} of $total leads', style: Theme.of(context).textTheme.bodyMedium),
                     ),
                   ),
                 ],
@@ -478,6 +440,7 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
     );
   }
 }
+
 
 class _FilterChip extends StatelessWidget {
   const _FilterChip({
@@ -542,7 +505,7 @@ class _LeadsKanban extends StatelessWidget {
         for (final stage in stages)
           _KanbanColumn(
             stage: stage,
-            leads: leads.where((l) => l['stage']?['id'] == stage['id']).toList(),
+            leads: leads.where((l) => '${l['stage']?['id']}' == '${stage['id']}').toList(),
             allStages: stages,
             onOpen: onOpen,
             onStageChanged: onStageChanged,
@@ -552,7 +515,7 @@ class _LeadsKanban extends StatelessWidget {
   }
 }
 
-class _KanbanColumn extends StatelessWidget {
+class _KanbanColumn extends StatefulWidget {
   const _KanbanColumn({
     required this.stage,
     required this.leads,
@@ -568,61 +531,90 @@ class _KanbanColumn extends StatelessWidget {
   final Future<void> Function(Map<String, dynamic> lead, int stageId) onStageChanged;
 
   @override
+  State<_KanbanColumn> createState() => _KanbanColumnState();
+}
+
+class _KanbanColumnState extends State<_KanbanColumn> {
+  bool _hovering = false;
+
+  @override
   Widget build(BuildContext context) {
-    final color = AppTheme.stageColor('${stage['code']}');
-    return Container(
-      width: 300,
-      margin: const EdgeInsets.only(right: 14),
-      decoration: BoxDecoration(
-        color: const Color(0xFFF0F3F8),
-        borderRadius: BorderRadius.circular(14),
-        border: Border.all(color: AppTheme.line),
-      ),
-      child: Column(
-        children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
-            child: Row(
-              children: [
-                Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
-                const SizedBox(width: 8),
-                Expanded(
-                  child: Text(
-                    '${stage['name']}',
-                    style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                Container(
-                  padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
-                  decoration: BoxDecoration(
-                    color: Colors.white,
-                    borderRadius: BorderRadius.circular(8),
-                    border: Border.all(color: AppTheme.line),
-                  ),
-                  child: Text('${leads.length}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
-                ),
-              ],
-            ),
+    final color = AppTheme.stageColor('${widget.stage['code']}');
+    final stageId = widget.stage['id'] as int;
+    return DragTarget<Map<String, dynamic>>(
+      onWillAcceptWithDetails: (details) {
+        final fromId = details.data['stage']?['id'];
+        final ok = '$fromId' != '$stageId';
+        setState(() => _hovering = ok);
+        return ok;
+      },
+      onLeave: (_) => setState(() => _hovering = false),
+      onAcceptWithDetails: (details) async {
+        setState(() => _hovering = false);
+        await widget.onStageChanged(details.data, stageId);
+      },
+      builder: (context, candidate, rejected) {
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 160),
+          width: 300,
+          margin: const EdgeInsets.only(right: 14),
+          decoration: BoxDecoration(
+            color: _hovering ? color.withValues(alpha: 0.10) : const Color(0xFFF0F3F8),
+            borderRadius: BorderRadius.circular(14),
+            border: Border.all(color: _hovering ? color : AppTheme.line, width: _hovering ? 2 : 1),
           ),
-          Expanded(
-            child: ListView.builder(
-              padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-              itemCount: leads.length,
-              itemBuilder: (context, i) {
-                final lead = leads[i];
-                return _LeadCard(
-                  lead: lead,
-                  stages: allStages,
-                  accent: color,
-                  onOpen: () => onOpen('${lead['id']}'),
-                  onStageChanged: (id) => onStageChanged(lead, id),
-                );
-              },
-            ),
+          child: Column(
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(14, 14, 14, 10),
+                child: Row(
+                  children: [
+                    Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+                    const SizedBox(width: 8),
+                    Expanded(
+                      child: Text(
+                        '${widget.stage['name']}',
+                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 2),
+                      decoration: BoxDecoration(
+                        color: Colors.white,
+                        borderRadius: BorderRadius.circular(8),
+                        border: Border.all(color: AppTheme.line),
+                      ),
+                      child: Text('${widget.leads.length}', style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 12)),
+                    ),
+                  ],
+                ),
+              ),
+              if (_hovering)
+                Padding(
+                  padding: const EdgeInsets.only(bottom: 6),
+                  child: Text('Drop here', style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12)),
+                ),
+              Expanded(
+                child: ListView.builder(
+                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+                  itemCount: widget.leads.length,
+                  itemBuilder: (context, i) {
+                    final lead = widget.leads[i];
+                    return _LeadCard(
+                      lead: lead,
+                      stages: widget.allStages,
+                      accent: color,
+                      onOpen: () => widget.onOpen('${lead['id']}'),
+                      onStageChanged: (id) => widget.onStageChanged(lead, id),
+                    );
+                  },
+                ),
+              ),
+            ],
           ),
-        ],
-      ),
+        );
+      },
     );
   }
 }
@@ -642,93 +634,64 @@ class _LeadCard extends StatelessWidget {
   final VoidCallback onOpen;
   final ValueChanged<int> onStageChanged;
 
-  @override
-  Widget build(BuildContext context) {
+  Widget _cardBody({required bool dragging}) {
     final name = '${lead['name']}';
     final mobile = '${lead['mobile']}';
-    return Padding(
-      padding: const EdgeInsets.only(bottom: 10),
-      child: Material(
-        color: Colors.white,
+    return Material(
+      color: Colors.white,
+      elevation: dragging ? 6 : 0,
+      borderRadius: BorderRadius.circular(12),
+      child: InkWell(
+        onTap: dragging ? null : onOpen,
         borderRadius: BorderRadius.circular(12),
-        child: InkWell(
-          onTap: onOpen,
-          borderRadius: BorderRadius.circular(12),
-          child: Container(
-            padding: const EdgeInsets.all(12),
-            decoration: BoxDecoration(
-              borderRadius: BorderRadius.circular(12),
-              border: Border.all(color: AppTheme.line),
-              boxShadow: [
-                BoxShadow(
-                  color: Colors.black.withValues(alpha: 0.03),
-                  blurRadius: 8,
-                  offset: const Offset(0, 2),
-                ),
-              ],
-            ),
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Row(
-                  children: [
-                    Container(
-                      width: 4,
-                      height: 28,
-                      decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4)),
+        child: Container(
+          padding: const EdgeInsets.all(12),
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(12),
+            border: Border.all(color: dragging ? accent : AppTheme.line, width: dragging ? 1.5 : 1),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                children: [
+                  Container(
+                    width: 4,
+                    height: 28,
+                    decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4)),
+                  ),
+                  const SizedBox(width: 10),
+                  Expanded(
+                    child: Text(
+                      name,
+                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                      maxLines: 1,
+                      overflow: TextOverflow.ellipsis,
                     ),
-                    const SizedBox(width: 10),
-                    Expanded(
-                      child: Text(
-                        name,
-                        style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                        maxLines: 1,
-                        overflow: TextOverflow.ellipsis,
-                      ),
-                    ),
+                  ),
+                  if (!dragging)
                     IconButton(
                       visualDensity: VisualDensity.compact,
                       tooltip: 'Call',
                       onPressed: () => launchUrl(Uri(scheme: 'tel', path: mobile)),
                       icon: const Icon(Icons.call_rounded, size: 18, color: AppTheme.brandGreenDark),
                     ),
-                  ],
-                ),
-                const SizedBox(height: 6),
-                Text(mobile, style: const TextStyle(color: AppTheme.muted, fontWeight: FontWeight.w600)),
-                if (lead['preferred_location'] != null) ...[
-                  const SizedBox(height: 4),
-                  Text(
-                    '${lead['preferred_location']}',
-                    style: const TextStyle(color: AppTheme.muted, fontSize: 12),
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
                 ],
-                const SizedBox(height: 8),
-                Row(
-                  children: [
-                    if ('${lead['platform'] ?? ''}'.isNotEmpty) ...[
-                      Container(
-                        padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: AppTheme.mist,
-                          borderRadius: BorderRadius.circular(6),
-                        ),
-                        child: Text(
-                          AppTheme.platformLabel('${lead['platform']}'),
-                          style: const TextStyle(fontSize: 10, fontWeight: FontWeight.w800, color: AppTheme.brandGreenDark),
-                        ),
-                      ),
-                      const SizedBox(width: 6),
-                    ],
-                    Expanded(
-                      child: Text(
-                        '${lead['source']?['name'] ?? '—'}',
-                        style: const TextStyle(fontSize: 11, color: AppTheme.muted, fontWeight: FontWeight.w600),
-                        overflow: TextOverflow.ellipsis,
-                      ),
+              ),
+              const SizedBox(height: 6),
+              Text(mobile, style: const TextStyle(color: AppTheme.muted, fontWeight: FontWeight.w600)),
+              const SizedBox(height: 8),
+              Row(
+                children: [
+                  const Icon(Icons.drag_indicator, size: 16, color: AppTheme.muted),
+                  const SizedBox(width: 4),
+                  Expanded(
+                    child: Text(
+                      dragging ? 'Drop on a status' : 'Drag to move',
+                      style: const TextStyle(fontSize: 11, color: AppTheme.muted, fontWeight: FontWeight.w600),
                     ),
+                  ),
+                  if (!dragging)
                     PopupMenuButton<int>(
                       tooltip: 'Move stage',
                       padding: EdgeInsets.zero,
@@ -738,29 +701,31 @@ class _LeadCard extends StatelessWidget {
                         for (final s in stages)
                           PopupMenuItem(
                             value: s['id'] as int,
-                            child: Row(
-                              children: [
-                                Container(
-                                  width: 8,
-                                  height: 8,
-                                  decoration: BoxDecoration(
-                                    color: AppTheme.stageColor('${s['code']}'),
-                                    shape: BoxShape.circle,
-                                  ),
-                                ),
-                                const SizedBox(width: 8),
-                                Text('${s['name']}'),
-                              ],
-                            ),
+                            child: Text('${s['name']}'),
                           ),
                       ],
                     ),
-                  ],
-                ),
-              ],
-            ),
+                ],
+              ),
+            ],
           ),
         ),
+      ),
+    );
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 10),
+      child: LongPressDraggable<Map<String, dynamic>>(
+        data: lead,
+        feedback: Material(
+          color: Colors.transparent,
+          child: SizedBox(width: 260, child: _cardBody(dragging: true)),
+        ),
+        childWhenDragging: Opacity(opacity: 0.35, child: _cardBody(dragging: false)),
+        child: _cardBody(dragging: false),
       ),
     );
   }
@@ -793,15 +758,6 @@ class _LeadsTable extends StatelessWidget {
                 headingRowColor: WidgetStateProperty.all(const Color(0xFFF8FAFC)),
                 dataRowMinHeight: 58,
                 dataRowMaxHeight: 68,
-                headingRowHeight: 46,
-                border: TableBorder(
-                  horizontalInside: const BorderSide(color: AppTheme.line),
-                  top: const BorderSide(color: AppTheme.line),
-                  bottom: const BorderSide(color: AppTheme.line),
-                  left: const BorderSide(color: AppTheme.line),
-                  right: const BorderSide(color: AppTheme.line),
-                  borderRadius: BorderRadius.circular(12),
-                ),
                 columns: const [
                   DataColumn(label: Text('Lead')),
                   DataColumn(label: Text('Mobile')),
@@ -816,55 +772,15 @@ class _LeadsTable extends StatelessWidget {
                     DataRow(
                       onSelectChanged: (_) => onOpen('${lead['id']}'),
                       cells: [
-                        DataCell(
-                          Row(
-                            children: [
-                              CircleAvatar(
-                                radius: 16,
-                                backgroundColor: AppTheme.brandGold.withValues(alpha: 0.2),
-                                child: Text(
-                                  '${lead['name']}'.isNotEmpty
-                                      ? '${lead['name']}'.characters.first.toUpperCase()
-                                      : '?',
-                                  style: const TextStyle(
-                                    color: AppTheme.brandGoldDeep,
-                                    fontWeight: FontWeight.w800,
-                                  ),
-                                ),
-                              ),
-                              const SizedBox(width: 10),
-                              ConstrainedBox(
-                                constraints: const BoxConstraints(maxWidth: 180),
-                                child: Text('${lead['name']}', style: const TextStyle(fontWeight: FontWeight.w800)),
-                              ),
-                            ],
-                          ),
-                        ),
+                        DataCell(Text('${lead['name']}', style: const TextStyle(fontWeight: FontWeight.w800))),
                         DataCell(Text('${lead['mobile']}')),
                         DataCell(
                           DropdownButtonHideUnderline(
                             child: DropdownButton<int>(
                               value: lead['stage']?['id'] as int?,
-                              borderRadius: BorderRadius.circular(10),
                               items: [
                                 for (final s in stages)
-                                  DropdownMenuItem(
-                                    value: s['id'] as int,
-                                    child: Row(
-                                      children: [
-                                        Container(
-                                          width: 8,
-                                          height: 8,
-                                          decoration: BoxDecoration(
-                                            color: AppTheme.stageColor('${s['code']}'),
-                                            shape: BoxShape.circle,
-                                          ),
-                                        ),
-                                        const SizedBox(width: 8),
-                                        Text('${s['name']}'),
-                                      ],
-                                    ),
-                                  ),
+                                  DropdownMenuItem(value: s['id'] as int, child: Text('${s['name']}')),
                               ],
                               onChanged: (v) {
                                 if (v != null) onStageChanged(lead, v);
@@ -886,14 +802,6 @@ class _LeadsTable extends StatelessWidget {
                                 tooltip: 'Call',
                                 onPressed: () => launchUrl(Uri(scheme: 'tel', path: '${lead['mobile']}')),
                                 icon: const Icon(Icons.call_rounded, color: AppTheme.brandGreenDark),
-                              ),
-                              IconButton(
-                                tooltip: 'WhatsApp',
-                                onPressed: () {
-                                  final m = '${lead['mobile']}'.replaceAll(RegExp(r'\D'), '');
-                                  launchUrl(Uri.parse('https://wa.me/$m'), mode: LaunchMode.externalApplication);
-                                },
-                                icon: const Icon(Icons.chat_rounded, color: AppTheme.brandGreen),
                               ),
                               IconButton(
                                 tooltip: 'Open',

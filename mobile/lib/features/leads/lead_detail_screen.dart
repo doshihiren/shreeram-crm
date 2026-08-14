@@ -101,6 +101,7 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
     }
     final code = '${stage?['code'] ?? ''}';
     final needsFollowUp = stageRequiresFollowUp(code);
+    final needsRemarks = stageRequiresRemarks(code);
 
     if (needsFollowUp) {
       if (code.toUpperCase() == 'CALL_NOT_RECEIVED' && _nextFollowUp == null) {
@@ -110,8 +111,8 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
         setState(() => _banner = 'Next follow-up date is required for this status (default 10:00 AM).');
         return;
       }
-      if (_remark.text.trim().isEmpty) {
-        setState(() => _banner = 'Remarks are required when updating status (except Lost / Unit Booked).');
+      if (needsRemarks && _remark.text.trim().isEmpty) {
+        setState(() => _banner = 'Remarks are required for this status (not needed for Call Not Received / Lost / Unit Booked).');
         return;
       }
     }
@@ -430,7 +431,7 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
                                       ? 'Set next follow-up date'
                                       : DateFormat('EEE, d MMM · h:mm a').format(_nextFollowUp!),
                                 ),
-                                subtitle: const Text('Required except Lost / Unit Booked · default 10:00 AM'),
+                                subtitle: const Text('Required except Lost / Unit Booked · Call Not Received needs date only · default 10:00 AM'),
                                 trailing: const Icon(Icons.chevron_right),
                                 onTap: _pickFollowUp,
                               ),

@@ -39,7 +39,7 @@ _flutter.buildConfig = {"engineRevision":"ef0cd000916d64fa0c5d09cc809fa7ad244a57
 
 // Fast boot: no service worker, CanvasKit from Google CDN, cache-busted entrypoint.
 (function () {
-  var buildId = "20260814-085222";
+  var buildId = "20260814-090245";
   var cfg = _flutter.buildConfig || {};
   if (cfg.builds && cfg.builds.length) {
     cfg.builds.forEach(function (b) {

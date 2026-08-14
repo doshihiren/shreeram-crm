@@ -26,7 +26,7 @@ class LeadController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $perPage = min((int) $request->integer('per_page', 50), 200);
+        $perPage = min(max((int) $request->integer('per_page', 200), 1), 1000);
 
         $query = Lead::query()
             ->with(['source', 'stage', 'assignee', 'propertyType', 'propertyConfiguration', 'purpose', 'metaAttribution'])
@@ -138,9 +138,10 @@ class LeadController extends Controller
 
         $stage = LeadStage::query()->findOrFail($data['lead_stage_id']);
         $requiresFollowUp = ! $stage->is_lost && $stage->code !== 'UNIT_BOOKED';
+        $requiresRemarks = $requiresFollowUp && $stage->code !== 'CALL_NOT_RECEIVED';
 
         if ($requiresFollowUp && empty($data['next_follow_up_at'])) {
-            // Call Not Received → tomorrow 10:00 server local if client omitted it.
+            // Call Not Received → tomorrow 10:00 if client omitted it.
             if ($stage->code === 'CALL_NOT_RECEIVED') {
                 $data['next_follow_up_at'] = now()->addDay()->setTime(10, 0)->toIso8601String();
             } else {
@@ -149,7 +150,7 @@ class LeadController extends Controller
                 ]);
             }
         }
-        if ($requiresFollowUp && empty($data['remarks'])) {
+        if ($requiresRemarks && empty($data['remarks'])) {
             throw ValidationException::withMessages([
                 'remarks' => ['Remarks are required for this status.'],
             ]);
@@ -159,6 +160,18 @@ class LeadController extends Controller
 
         if (! empty($data['next_follow_up_at'])) {
             $lead->update(['next_follow_up_at' => $data['next_follow_up_at']]);
+
+            $pendingStatusId = \App\Models\FollowUpStatus::query()->where('code', 'PENDING')->value('id');
+            if ($pendingStatusId) {
+                \App\Models\FollowUp::query()->create([
+                    'lead_id' => $lead->id,
+                    'assigned_to' => $lead->assigned_to ?? $request->user()->id,
+                    'due_at' => $data['next_follow_up_at'],
+                    'remarks' => $data['remarks'] ?? ($stage->code === 'CALL_NOT_RECEIVED' ? 'Call not received — auto follow-up' : null),
+                    'follow_up_status_id' => $pendingStatusId,
+                    'created_by' => $request->user()->id,
+                ]);
+            }
         }
 
         if (! empty($data['remarks'])) {
@@ -168,20 +181,6 @@ class LeadController extends Controller
                 'type' => 'remark',
                 'body' => $data['remarks'],
             ]);
-
-            if (! empty($data['next_follow_up_at'])) {
-                $pendingStatusId = \App\Models\FollowUpStatus::query()->where('code', 'PENDING')->value('id');
-                if ($pendingStatusId) {
-                    \App\Models\FollowUp::query()->create([
-                        'lead_id' => $lead->id,
-                        'assigned_to' => $lead->assigned_to ?? $request->user()->id,
-                        'due_at' => $data['next_follow_up_at'],
-                        'remarks' => $data['remarks'],
-                        'follow_up_status_id' => $pendingStatusId,
-                        'created_by' => $request->user()->id,
-                    ]);
-                }
-            }
         }
 
         return new LeadResource($lead->fresh(['source', 'stage', 'assignee', 'metaAttribution']));
