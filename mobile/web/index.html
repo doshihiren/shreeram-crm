@@ -1,0 +1,102 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base href="$FLUTTER_BASE_HREF">
+
+  <meta charset="UTF-8">
+  <meta content="IE=Edge" http-equiv="X-UA-Compatible">
+  <meta name="description" content="ShreeRam Lead CRM">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+
+  <!-- Only the HTML shell must stay uncached; hashed/query-busted assets are cached by Nginx -->
+  <meta http-equiv="Cache-Control" content="no-cache">
+
+  <meta name="mobile-web-app-capable" content="yes">
+  <meta name="apple-mobile-web-app-status-bar-style" content="black">
+  <meta name="apple-mobile-web-app-title" content="ShreeRam CRM">
+  <link rel="apple-touch-icon" href="icons/Icon-192.png">
+  <link rel="icon" type="image/png" href="favicon.png"/>
+
+  <title>ShreeRam CRM</title>
+  <link rel="manifest" href="manifest.json">
+
+  <!-- Warm CDNs used by Flutter CanvasKit + API host -->
+  <link rel="dns-prefetch" href="https://www.gstatic.com">
+  <link rel="preconnect" href="https://www.gstatic.com" crossorigin>
+  <link rel="preload" href="main.dart.js" as="script">
+
+  <style>
+    html, body {
+      margin: 0;
+      height: 100%;
+      background: linear-gradient(135deg, #F3F7F4 0%, #E8F0E9 45%, #F6EFDA 100%);
+      font-family: Manrope, system-ui, sans-serif;
+    }
+    #splash {
+      position: fixed;
+      inset: 0;
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      flex-direction: column;
+      gap: 18px;
+      z-index: 9999;
+      transition: opacity .25s ease;
+    }
+    #splash img {
+      height: 72px;
+      width: auto;
+      border-radius: 8px;
+    }
+    #splash .bar {
+      width: 160px;
+      height: 3px;
+      border-radius: 999px;
+      background: rgba(12, 61, 50, 0.12);
+      overflow: hidden;
+    }
+    #splash .bar > i {
+      display: block;
+      height: 100%;
+      width: 40%;
+      border-radius: inherit;
+      background: #0C3D32;
+      animation: slide 1.1s ease-in-out infinite;
+    }
+    #splash p {
+      margin: 0;
+      color: #5C6B62;
+      font-size: 13px;
+      font-weight: 600;
+      letter-spacing: .02em;
+    }
+    @keyframes slide {
+      0% { transform: translateX(-120%); }
+      100% { transform: translateX(320%); }
+    }
+  </style>
+
+  <!-- Kill stale Flutter service workers from earlier deploys -->
+  <script>
+    (function () {
+      if (!('serviceWorker' in navigator)) return;
+      navigator.serviceWorker.getRegistrations().then(function (regs) {
+        regs.forEach(function (reg) { reg.unregister(); });
+      });
+      if (window.caches && caches.keys) {
+        caches.keys().then(function (keys) {
+          keys.forEach(function (key) { caches.delete(key); });
+        });
+      }
+    })();
+  </script>
+</head>
+<body>
+  <div id="splash">
+    <img src="splash-logo.jpg" alt="ShreeRam Developer" width="240" height="71">
+    <div class="bar"><i></i></div>
+    <p>Loading CRM…</p>
+  </div>
+  <script src="flutter_bootstrap.js" async></script>
+</body>
+</html>
