@@ -41,6 +41,7 @@ final appRouterProvider = Provider<GoRouter>((ref) {
           GoRoute(
             path: '/leads',
             builder: (context, state) => LeadsScreen(
+              key: ValueKey('leads-${state.uri.queryParameters['stage_id'] ?? 'all'}-${state.uri.queryParameters['create'] ?? '0'}'),
               initialStageId: state.uri.queryParameters['stage_id'],
               openCreate: state.uri.queryParameters['create'] == '1',
             ),

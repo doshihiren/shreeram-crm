@@ -156,6 +156,8 @@ class AppTheme {
     switch (code) {
       case 'NEW_LEAD':
         return brandBlue;
+      case 'CALL_NOT_RECEIVED':
+        return const Color(0xFF6B7C86);
       case 'CALL_DONE':
       case 'CONTACTED':
         return const Color(0xFF7C5CFC);

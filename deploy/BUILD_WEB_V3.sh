@@ -37,7 +37,7 @@ cp -a build/web/. "$ROOT/deploy/web-dist-v3/"
 
 # Sanity
 grep -q 'base href="/shreeram-crm/v3/"' "$ROOT/deploy/web-dist-v3/index.html"
-grep -q "UI build 2026-08-13-FASTLOAD" "$ROOT/deploy/web-dist-v3/main.dart.js"
+grep -q "UI build 2026-08-14-LEADSUX" "$ROOT/deploy/web-dist-v3/main.dart.js"
 grep -q "$BUILD_ID" "$ROOT/deploy/web-dist-v3/flutter_bootstrap.js"
 grep -q "main.dart.js?v=${BUILD_ID}" "$ROOT/deploy/web-dist-v3/index.html"
 test ! -d "$ROOT/deploy/web-dist-v3/canvaskit"

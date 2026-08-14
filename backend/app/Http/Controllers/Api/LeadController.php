@@ -14,6 +14,7 @@ use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Http\Resources\Json\AnonymousResourceCollection;
 use Illuminate\Validation\Rule;
+use Illuminate\Validation\ValidationException;
 
 class LeadController extends Controller
 {
@@ -25,7 +26,7 @@ class LeadController extends Controller
     {
         /** @var User $user */
         $user = $request->user();
-        $perPage = min((int) $request->integer('per_page', 20), 50);
+        $perPage = min((int) $request->integer('per_page', 50), 200);
 
         $query = Lead::query()
             ->with(['source', 'stage', 'assignee', 'propertyType', 'propertyConfiguration', 'purpose', 'metaAttribution'])
@@ -131,12 +132,59 @@ class LeadController extends Controller
         $data = $request->validate([
             'lead_stage_id' => ['required', 'exists:lead_stages,id'],
             'lost_reason' => ['nullable', 'string', 'max:500'],
+            'next_follow_up_at' => ['nullable', 'date'],
+            'remarks' => ['nullable', 'string', 'max:5000'],
         ]);
 
         $stage = LeadStage::query()->findOrFail($data['lead_stage_id']);
+        $requiresFollowUp = ! $stage->is_lost && $stage->code !== 'UNIT_BOOKED';
+
+        if ($requiresFollowUp && empty($data['next_follow_up_at'])) {
+            // Call Not Received → tomorrow 10:00 server local if client omitted it.
+            if ($stage->code === 'CALL_NOT_RECEIVED') {
+                $data['next_follow_up_at'] = now()->addDay()->setTime(10, 0)->toIso8601String();
+            } else {
+                throw ValidationException::withMessages([
+                    'next_follow_up_at' => ['Next follow-up date is required for this status.'],
+                ]);
+            }
+        }
+        if ($requiresFollowUp && empty($data['remarks'])) {
+            throw ValidationException::withMessages([
+                'remarks' => ['Remarks are required for this status.'],
+            ]);
+        }
+
         $lead = $this->intake->changeStage($lead, $stage, $request->user(), $data['lost_reason'] ?? null);
 
-        return new LeadResource($lead->load(['source', 'stage', 'assignee']));
+        if (! empty($data['next_follow_up_at'])) {
+            $lead->update(['next_follow_up_at' => $data['next_follow_up_at']]);
+        }
+
+        if (! empty($data['remarks'])) {
+            LeadActivity::query()->create([
+                'lead_id' => $lead->id,
+                'user_id' => $request->user()->id,
+                'type' => 'remark',
+                'body' => $data['remarks'],
+            ]);
+
+            if (! empty($data['next_follow_up_at'])) {
+                $pendingStatusId = \App\Models\FollowUpStatus::query()->where('code', 'PENDING')->value('id');
+                if ($pendingStatusId) {
+                    \App\Models\FollowUp::query()->create([
+                        'lead_id' => $lead->id,
+                        'assigned_to' => $lead->assigned_to ?? $request->user()->id,
+                        'due_at' => $data['next_follow_up_at'],
+                        'remarks' => $data['remarks'],
+                        'follow_up_status_id' => $pendingStatusId,
+                        'created_by' => $request->user()->id,
+                    ]);
+                }
+            }
+        }
+
+        return new LeadResource($lead->fresh(['source', 'stage', 'assignee', 'metaAttribution']));
     }
 
     public function assign(Request $request, Lead $lead): LeadResource

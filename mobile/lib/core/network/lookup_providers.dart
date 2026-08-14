@@ -8,6 +8,14 @@ final stagesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
       .toList();
 });
 
+/// Includes inactive statuses for the admin editor.
+final stagesAdminProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
+  final res = await ref.watch(dioProvider).get('/lead-stages', queryParameters: {'all': 1});
+  return (res.data['data'] as List<dynamic>? ?? [])
+      .map((e) => Map<String, dynamic>.from(e as Map))
+      .toList();
+});
+
 final sourcesProvider = FutureProvider<List<Map<String, dynamic>>>((ref) async {
   final res = await ref.watch(dioProvider).get('/lead-sources');
   return (res.data['data'] as List<dynamic>? ?? [])

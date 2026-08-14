@@ -22,10 +22,15 @@ class LookupController extends Controller
         ]);
     }
 
-    public function stages(): JsonResponse
+    public function stages(Request $request): JsonResponse
     {
+        $query = LeadStage::query()->orderBy('sort_order');
+        if (! $request->boolean('all')) {
+            $query->where('is_active', true);
+        }
+
         return response()->json([
-            'data' => LeadStage::query()->where('is_active', true)->orderBy('sort_order')->get(),
+            'data' => $query->get(),
         ]);
     }
 

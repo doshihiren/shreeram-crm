@@ -11,8 +11,8 @@ git pull origin cursor/crm-implementation-523b
 echo "COMMIT=$(git rev-parse --short HEAD)"
 test -f deploy/web-dist-v3/index.html
 grep -n 'base href="/shreeram-crm/v3/"' deploy/web-dist-v3/index.html
-grep -n "UI build 2026-08-13-FASTLOAD" deploy/web-dist-v3/main.dart.js | head -1
-grep -n "Pipeline board\|Sales command center\|All statuses\|Continue as" deploy/web-dist-v3/main.dart.js | head -1
+grep -n "UI build 2026-08-14-LEADSUX" deploy/web-dist-v3/main.dart.js | head -1
+grep -n "Pipeline board\|Sales command center\|All statuses\|Continue as\|Leads ·" deploy/web-dist-v3/main.dart.js | head -1
 test ! -d deploy/web-dist-v3/canvaskit
 
 rm -rf backend/public/app-v3
@@ -20,24 +20,24 @@ mkdir -p backend/public/app-v3
 cp -a deploy/web-dist-v3/. backend/public/app-v3/
 
 grep -n 'base href="/shreeram-crm/v3/"' backend/public/app-v3/index.html
-grep -n "UI build 2026-08-13-FASTLOAD" backend/public/app-v3/main.dart.js | head -1
+grep -n "UI build 2026-08-14-LEADSUX" backend/public/app-v3/main.dart.js | head -1
 ls -la backend/public/app-v3/index.html backend/public/app-v3/main.dart.js backend/public/app-v3/splash-logo.jpg
 
 cd backend
 php artisan config:clear
 php artisan route:clear
 php artisan config:cache
+php artisan stages:sync-pipeline --force || true
 
 cat <<'EOF'
 
 FILES READY at backend/public/app-v3
 
-Apply faster caching (once):
-  sudo bash deploy/APPLY_PERF_NGINX.sh
+Also sync statuses (Call Not Received):
+  cd backend && php artisan stages:sync-pipeline --force
 
 Then open Incognito:
   https://aweliontech.com/shreeram-crm/v3/
 
-Expect: instant splash logo + pill UI build 2026-08-13-FASTLOAD
-Tap: Owner / Admin / Sales
+Expect pill: UI build 2026-08-14-LEADSUX
 EOF

@@ -6,6 +6,7 @@ import 'package:shreeram_crm/core/network/api_client.dart';
 import 'package:shreeram_crm/core/network/lookup_providers.dart';
 import 'package:shreeram_crm/core/theme/app_theme.dart';
 import 'package:shreeram_crm/features/leads/leads_screen.dart';
+import 'package:shreeram_crm/features/leads/stage_change_dialog.dart';
 import 'package:url_launcher/url_launcher.dart';
 
 final leadDetailProvider = FutureProvider.family<Map<String, dynamic>, String>((ref, id) async {
@@ -90,6 +91,31 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
 
   Future<void> _saveLead() async {
     if (!(_formKey.currentState?.validate() ?? false)) return;
+    final stages = ref.read(stagesProvider).asData?.value ?? const <Map<String, dynamic>>[];
+    Map<String, dynamic>? stage;
+    for (final s in stages) {
+      if (s['id'] == _stageId) {
+        stage = s;
+        break;
+      }
+    }
+    final code = '${stage?['code'] ?? ''}';
+    final needsFollowUp = stageRequiresFollowUp(code);
+
+    if (needsFollowUp) {
+      if (code.toUpperCase() == 'CALL_NOT_RECEIVED' && _nextFollowUp == null) {
+        _nextFollowUp = defaultFollowUpAt(nextDay: true);
+      }
+      if (_nextFollowUp == null) {
+        setState(() => _banner = 'Next follow-up date is required for this status (default 10:00 AM).');
+        return;
+      }
+      if (_remark.text.trim().isEmpty) {
+        setState(() => _banner = 'Remarks are required when updating status (except Lost / Unit Booked).');
+        return;
+      }
+    }
+
     setState(() {
       _saving = true;
       _banner = null;
@@ -104,18 +130,20 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
         'next_follow_up_at': _nextFollowUp?.toUtc().toIso8601String(),
       });
       if (_stageId != null) {
-        await dio.patch('/leads/${widget.leadId}/stage', data: {'lead_stage_id': _stageId});
+        await dio.patch('/leads/${widget.leadId}/stage', data: {
+          'lead_stage_id': _stageId,
+          if (_nextFollowUp != null) 'next_follow_up_at': _nextFollowUp!.toUtc().toIso8601String(),
+          if (_remark.text.trim().isNotEmpty) 'remarks': _remark.text.trim(),
+        });
+      } else if (_nextFollowUp != null && _remark.text.trim().isNotEmpty) {
+        await dio.post('/follow-ups', data: {
+          'lead_id': int.parse(widget.leadId),
+          'due_at': _nextFollowUp!.toUtc().toIso8601String(),
+          'remarks': _remark.text.trim(),
+        });
+        await dio.post('/leads/${widget.leadId}/remarks', data: {'body': _remark.text.trim()});
       }
-      if (_nextFollowUp != null && _remark.text.trim().isEmpty) {
-        // optional: create follow-up record when date set
-        try {
-          await dio.post('/follow-ups', data: {
-            'lead_id': int.parse(widget.leadId),
-            'due_at': _nextFollowUp!.toUtc().toIso8601String(),
-            'remarks': 'Next follow-up',
-          });
-        } catch (_) {}
-      }
+      _remark.clear();
       ref.invalidate(leadDetailProvider(widget.leadId));
       ref.invalidate(leadActivitiesProvider(widget.leadId));
       ref.invalidate(leadsBoardProvider);
@@ -127,7 +155,7 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
       });
     } catch (e) {
       if (!mounted) return;
-      setState(() => _banner = 'Could not save. Check fields and try again.');
+      setState(() => _banner = 'Could not save: $e');
     } finally {
       if (mounted) setState(() => _saving = false);
     }
@@ -174,7 +202,7 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
     if (d == null || !mounted) return;
     final t = await showTimePicker(
       context: context,
-      initialTime: TimeOfDay.fromDateTime(_nextFollowUp ?? now.add(const Duration(hours: 2))),
+      initialTime: TimeOfDay.fromDateTime(_nextFollowUp ?? defaultFollowUpAt(nextDay: false)),
     );
     if (t == null) return;
     setState(() {
@@ -381,7 +409,15 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
                                     ),
                                 ],
                                 onChanged: (v) {
-                                  setState(() => _stageId = v);
+                                  setState(() {
+                                    _stageId = v;
+                                    final code = '${stages.firstWhere((s) => s['id'] == v, orElse: () => const {})['code'] ?? ''}';
+                                    if (code.toUpperCase() == 'CALL_NOT_RECEIVED') {
+                                      _nextFollowUp = defaultFollowUpAt(nextDay: true);
+                                    } else if (stageRequiresFollowUp(code) && _nextFollowUp == null) {
+                                      _nextFollowUp = defaultFollowUpAt(nextDay: false);
+                                    }
+                                  });
                                   _markDirty();
                                 },
                               ),
@@ -394,7 +430,7 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
                                       ? 'Set next follow-up date'
                                       : DateFormat('EEE, d MMM · h:mm a').format(_nextFollowUp!),
                                 ),
-                                subtitle: const Text('Tap to choose date & time'),
+                                subtitle: const Text('Required except Lost / Unit Booked · default 10:00 AM'),
                                 trailing: const Icon(Icons.chevron_right),
                                 onTap: _pickFollowUp,
                               ),
