@@ -206,10 +206,17 @@ class CheckMetaLogs extends Command
 
         $this->newLine();
         $this->info('=== Next actions ===');
-        $this->line('1) If section E says no leadgen: php artisan meta:subscribe-page');
-        $this->line('2) Backfill July → now:');
+        $this->line('WHY dummy + manual work but live auto fails:');
+        $this->line('  • Meta "Test" posts to the App webhook URL directly.');
+        $this->line('  • Manual import uses Graph API (no webhook).');
+        $this->line('  • LIVE leads only notify apps on Page subscribed_apps with leadgen.');
+        $this->line('1) If section E says wrong/missing leadgen: php artisan meta:subscribe-page');
+        $this->line('2) If events show rejected_signature: re-save matching App Secret in CRM.');
+        $this->line('3) Backfill missed leads:');
         $this->line('   php artisan meta:import-leads --form='.$formId.' --since=2026-07-01 --limit=500');
-        $this->line('3) Re-check: php artisan meta:check-logs');
+        $this->line('4) Enable poller safety net (crontab):');
+        $this->line('   * * * * * cd /var/www/shreeram-crm/backend && php artisan schedule:run >> /dev/null 2>&1');
+        $this->line('5) Re-check: php artisan meta:check-logs');
 
         return self::SUCCESS;
     }

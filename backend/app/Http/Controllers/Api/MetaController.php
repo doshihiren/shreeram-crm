@@ -6,16 +6,20 @@ use App\Http\Controllers\Controller;
 use App\Models\AuditLog;
 use App\Models\MetaConnection;
 use App\Models\MetaLeadForm;
+use App\Models\MetaWebhookEvent;
 use App\Services\Meta\MetaLeadIngestor;
+use App\Services\Meta\MetaWebhookHealth;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Http\Request;
 use Illuminate\Support\Facades\Hash;
+use Illuminate\Support\Facades\Log;
 use Illuminate\Support\Str;
 
 class MetaController extends Controller
 {
     public function __construct(
         private readonly MetaLeadIngestor $ingestor,
+        private readonly MetaWebhookHealth $webhookHealth,
     ) {}
 
     public function showConnection(Request $request): JsonResponse
@@ -39,14 +43,24 @@ class MetaController extends Controller
                 'webhook_callback_url' => $webhookUrl,
                 'setup_steps' => [
                     'Create a Meta App and add the Lead Ads / Webhooks product.',
-                    'Paste App ID and App Secret below.',
+                    'Paste App ID and App Secret below (must be the SAME app that owns the webhook URL).',
                     'Generate a verify token here, then use the same token in Meta webhook settings.',
-                    'Set Callback URL to the webhook URL shown below.',
-                    'Subscribe the Facebook Page to leadgen.',
-                    'Save Page ID, Page name, and Page access token.',
-                    'Register the Lead Form ID(s) you want to accept.',
+                    'Set Callback URL to the webhook URL shown below and subscribe to leadgen.',
+                    'Generate a Page access token FROM THAT SAME APP, then save Page ID + token here.',
+                    'On VPS run: php artisan meta:subscribe-page (Page must subscribe CRM app to leadgen).',
+                    'Register the Lead Form ID(s). Use Meta → Diagnose webhook health to verify.',
                 ],
+                'webhook_note' => 'Dummy Test + manual fetch can work even when LIVE auto-webhook is broken. Live leads only reach the app listed on the Page subscribed_apps with field=leadgen.',
             ],
+        ]);
+    }
+
+    public function webhookHealth(Request $request): JsonResponse
+    {
+        abort_unless($request->user()->hasPermission('meta.manage'), 403);
+
+        return response()->json([
+            'data' => $this->webhookHealth->diagnose(),
         ]);
     }
 
@@ -168,8 +182,22 @@ class MetaController extends Controller
         if ($appSecret && $signature) {
             $expected = 'sha256='.hash_hmac('sha256', $request->getContent(), $appSecret);
             if (! hash_equals($expected, $signature)) {
+                Log::warning('Meta webhook rejected: invalid X-Hub-Signature-256 (App Secret mismatch?)', [
+                    'has_app_secret' => filled($appSecret),
+                    'app_id' => $connection?->app_id,
+                ]);
+                // Persist so meta:check-logs / webhook-health can surface the mismatch.
+                MetaWebhookEvent::query()->create([
+                    'payload' => $request->all(),
+                    'status' => 'rejected_signature',
+                    'error_message' => 'Invalid X-Hub-Signature-256 — App Secret in CRM must match the Meta App sending webhooks.',
+                ]);
+
                 return response()->json(['message' => 'Invalid signature'], 403);
             }
+        } elseif ($appSecret && ! $signature) {
+            // Live Meta webhooks normally sign; missing signature is unusual but allow for some Test tools.
+            Log::info('Meta webhook received without X-Hub-Signature-256');
         }
 
         // Fast ACK path: persist + process synchronously for V1 (queue optional later).

@@ -57,6 +57,7 @@ Route::prefix('v1')->group(function () {
 
         Route::get('/meta/connection', [MetaController::class, 'showConnection']);
         Route::post('/meta/connection', [MetaController::class, 'upsertConnection']);
+        Route::get('/meta/webhook-health', [MetaController::class, 'webhookHealth']);
         Route::post('/meta/forms/sync', [MetaController::class, 'syncForms']);
         Route::post('/meta/webhook-token', [MetaController::class, 'generateVerifyToken']);
     });

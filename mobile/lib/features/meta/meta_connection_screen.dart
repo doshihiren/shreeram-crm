@@ -11,6 +11,11 @@ final metaConnectionProvider = FutureProvider<Map<String, dynamic>>((ref) async 
   return Map<String, dynamic>.from(res.data['data'] as Map);
 });
 
+final metaWebhookHealthProvider = FutureProvider<Map<String, dynamic>>((ref) async {
+  final res = await ref.watch(dioProvider).get('/meta/webhook-health');
+  return Map<String, dynamic>.from(res.data['data'] as Map);
+});
+
 class MetaConnectionScreen extends ConsumerStatefulWidget {
   const MetaConnectionScreen({super.key});
 
@@ -133,7 +138,94 @@ class _MetaConnectionScreenState extends ConsumerState<MetaConnectionScreen> {
                 ),
               ),
             ),
-            const SizedBox(height: 20),
+            const SizedBox(height: 16),
+            FadeSlideIn(
+              delay: const Duration(milliseconds: 40),
+              child: SoftPanel(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Why dummy works but live leads don’t', style: Theme.of(context).textTheme.titleMedium),
+                    const SizedBox(height: 8),
+                    Text(
+                      'Meta “Test” and manual fetch do not use the same path as live form fills. '
+                      'Live leads only notify the Meta App listed on the Page as subscribed_apps with field=leadgen. '
+                      'If that app is not your CRM app, leads stay in Meta Lead Center only.',
+                      style: Theme.of(context).textTheme.bodyMedium,
+                    ),
+                    const SizedBox(height: 12),
+                    Consumer(
+                      builder: (context, ref, _) {
+                        final health = ref.watch(metaWebhookHealthProvider);
+                        return health.when(
+                          loading: () => const LinearProgressIndicator(minHeight: 2),
+                          error: (e, _) => Text('Health check failed: $e', style: const TextStyle(color: AppTheme.danger)),
+                          data: (h) {
+                            final ok = h['ok'] == true;
+                            final issues = (h['issues'] as List<dynamic>? ?? []);
+                            final apps = (h['subscribed_apps'] as List<dynamic>? ?? []);
+                            return Column(
+                              crossAxisAlignment: CrossAxisAlignment.start,
+                              children: [
+                                StatusPill(
+                                  label: ok ? 'Auto-webhook healthy' : 'Auto-webhook broken',
+                                  positive: ok,
+                                ),
+                                const SizedBox(height: 8),
+                                Text('${h['summary'] ?? ''}', style: Theme.of(context).textTheme.bodyMedium),
+                                if (apps.isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  Text('Page subscribed apps', style: Theme.of(context).textTheme.titleSmall),
+                                  const SizedBox(height: 6),
+                                  for (final raw in apps)
+                                    Builder(builder: (_) {
+                                      final a = Map<String, dynamic>.from(raw as Map);
+                                      final mark = a['is_crm_app'] == true ? ' ← CRM' : ' ← other';
+                                      final leadgen = a['has_leadgen'] == true ? 'leadgen' : 'no leadgen';
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 4),
+                                        child: Text(
+                                          '${a['name'] ?? ''} (${a['id']}) · $leadgen$mark',
+                                          style: Theme.of(context).textTheme.bodyMedium,
+                                        ),
+                                      );
+                                    }),
+                                ],
+                                if (issues.isNotEmpty) ...[
+                                  const SizedBox(height: 10),
+                                  for (final raw in issues)
+                                    Builder(builder: (_) {
+                                      final i = Map<String, dynamic>.from(raw as Map);
+                                      return Padding(
+                                        padding: const EdgeInsets.only(bottom: 8),
+                                        child: Text(
+                                          '• ${i['message']}${i['fix'] != null ? '\n  Fix: ${i['fix']}' : ''}',
+                                          style: TextStyle(
+                                            color: i['severity'] == 'error' ? AppTheme.danger : AppTheme.ink,
+                                            fontWeight: FontWeight.w600,
+                                            height: 1.35,
+                                          ),
+                                        ),
+                                      );
+                                    }),
+                                ],
+                                const SizedBox(height: 8),
+                                OutlinedButton.icon(
+                                  onPressed: () => ref.invalidate(metaWebhookHealthProvider),
+                                  icon: const Icon(Icons.health_and_safety_rounded),
+                                  label: const Text('Re-check webhook health'),
+                                ),
+                              ],
+                            );
+                          },
+                        );
+                      },
+                    ),
+                  ],
+                ),
+              ),
+            ),
+            const SizedBox(height: 16),
             FadeSlideIn(
               delay: const Duration(milliseconds: 60),
               child: SoftPanel(
