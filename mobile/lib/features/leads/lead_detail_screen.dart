@@ -246,7 +246,7 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.start,
                     children: [
-                      Text('Lead details', style: Theme.of(context).textTheme.titleLarge),
+                      Text('Lead #${widget.leadId}', style: Theme.of(context).textTheme.titleLarge),
                       Text(
                         _dirty ? 'Unsaved edits — tap Save' : 'Edit, add notes, set next follow-up',
                         style: TextStyle(

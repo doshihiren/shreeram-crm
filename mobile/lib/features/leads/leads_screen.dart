@@ -272,18 +272,30 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
   }
 
   List<Map<String, dynamic>> _filter(List<Map<String, dynamic>> leads) {
-    if (_query.isEmpty) return leads;
     return leads.where((l) {
+      if (_stageId != null && '${l['stage']?['id']}' != _stageId) return false;
+      if (_query.isEmpty) return true;
       final name = '${l['name']}'.toLowerCase();
       final mobile = '${l['mobile']}'.toLowerCase();
-      return name.contains(_query) || mobile.contains(_query);
+      final id = '${l['id']}';
+      return name.contains(_query) || mobile.contains(_query) || id.contains(_query) || '#$id'.contains(_query);
     }).toList();
+  }
+
+  Map<String, int> _stageCounts(List<Map<String, dynamic>> leads) {
+    final counts = <String, int>{};
+    for (final l in leads) {
+      final sid = '${l['stage']?['id']}';
+      counts[sid] = (counts[sid] ?? 0) + 1;
+    }
+    return counts;
   }
 
   @override
   Widget build(BuildContext context) {
     final stagesAsync = ref.watch(stagesProvider);
-    final leadsAsync = ref.watch(leadsBoardProvider(_stageId));
+    // Always load the full board so status chips can show counts and filters are client-side.
+    final leadsAsync = ref.watch(leadsBoardProvider(null));
     final wide = MediaQuery.sizeOf(context).width >= 1100;
 
     return Column(
@@ -298,8 +310,9 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                   Expanded(
                     child: leadsAsync.maybeWhen(
                       data: (page) {
-                        final total = page['meta']?['total'] ?? (page['data'] as List).length;
-                        final showing = _filter(List<Map<String, dynamic>>.from(page['data'] as List)).length;
+                        final all = List<Map<String, dynamic>>.from(page['data'] as List);
+                        final total = page['meta']?['total'] ?? all.length;
+                        final showing = _filter(all).length;
                         return Text(
                           'Leads · $showing / $total',
                           style: Theme.of(context).textTheme.titleLarge?.copyWith(fontWeight: FontWeight.w800),
@@ -323,7 +336,7 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                       child: TextField(
                         controller: _search,
                         onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
-                        decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search name or mobile', isDense: true),
+                        decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search ID, name or mobile', isDense: true),
                       ),
                     ),
                     const SizedBox(width: 10),
@@ -349,28 +362,26 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                 TextField(
                   controller: _search,
                   onChanged: (v) => setState(() => _query = v.trim().toLowerCase()),
-                  decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search name or mobile', isDense: true),
+                  decoration: const InputDecoration(prefixIcon: Icon(Icons.search), hintText: 'Search ID, name or mobile', isDense: true),
                 ),
               ],
-              const SizedBox(height: 8),
-              Align(
-                alignment: Alignment.centerLeft,
-                child: Text(
-                  'Drag a lead card onto another status column · drop asks for follow-up date & remarks',
-                  style: Theme.of(context).textTheme.bodyMedium?.copyWith(fontSize: 12),
-                ),
-              ),
               const SizedBox(height: 10),
               stagesAsync.when(
                 loading: () => const LinearProgressIndicator(minHeight: 2),
                 error: (e, _) => Text('$e'),
                 data: (stages) {
+                  final allLeads = leadsAsync.maybeWhen(
+                    data: (page) => List<Map<String, dynamic>>.from(page['data'] as List? ?? const []),
+                    orElse: () => const <Map<String, dynamic>>[],
+                  );
+                  final counts = _stageCounts(allLeads);
                   return SingleChildScrollView(
                     scrollDirection: Axis.horizontal,
                     child: Row(
                       children: [
                         _FilterChip(
                           label: 'All',
+                          count: allLeads.length,
                           selected: _stageId == null,
                           color: AppTheme.brandGreenDark,
                           onTap: () => setState(() => _stageId = null),
@@ -379,9 +390,13 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                           const SizedBox(width: 8),
                           _FilterChip(
                             label: '${stage['name']}',
+                            count: counts['${stage['id']}'] ?? 0,
                             selected: _stageId == '${stage['id']}',
                             color: AppTheme.stageColor('${stage['code']}'),
-                            onTap: () => setState(() => _stageId = '${stage['id']}'),
+                            onTap: () => setState(() {
+                              // Tap again to clear filter.
+                              _stageId = _stageId == '${stage['id']}' ? null : '${stage['id']}';
+                            }),
                           ),
                         ],
                       ],
@@ -400,15 +415,24 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
             data: (page) {
               final leads = List<Map<String, dynamic>>.from(page['data'] as List? ?? const []);
               final filtered = _filter(leads);
-              final total = (page['meta']?['total'] as num?)?.toInt() ?? filtered.length;
+              final total = (page['meta']?['total'] as num?)?.toInt() ?? leads.length;
 
               if (filtered.isEmpty) {
                 return Center(
                   child: Column(
                     mainAxisSize: MainAxisSize.min,
                     children: [
-                      Text('No leads in this view', style: Theme.of(context).textTheme.headlineSmall),
-                      const SizedBox(height: 12),
+                      Text(
+                        _stageId == null ? 'No leads yet' : 'No leads in this status',
+                        style: Theme.of(context).textTheme.headlineSmall,
+                      ),
+                      const SizedBox(height: 8),
+                      if (_stageId != null)
+                        TextButton(
+                          onPressed: () => setState(() => _stageId = null),
+                          child: const Text('Show all statuses'),
+                        ),
+                      const SizedBox(height: 8),
                       ElevatedButton.icon(onPressed: _openCreateLead, icon: const Icon(Icons.add), label: const Text('Add lead')),
                     ],
                   ),
@@ -422,11 +446,12 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                       loading: () => const SizedBox.shrink(),
                       error: (e, _) => Text('$e'),
                       data: (stages) {
-                        // Board always shows all stage columns so drag-drop works.
                         if (_view == _LeadsView.board) {
                           return _LeadsKanban(
                             leads: filtered,
+                            allLeads: leads,
                             stages: stages,
+                            focusStageId: _stageId,
                             onOpen: (id) => context.go('/leads/$id'),
                             onStageChanged: _changeStage,
                           );
@@ -445,7 +470,12 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                     color: Colors.white,
                     child: Align(
                       alignment: Alignment.centerLeft,
-                      child: Text('Showing ${filtered.length} of $total leads', style: Theme.of(context).textTheme.bodyMedium),
+                      child: Text(
+                        _stageId == null
+                            ? 'Showing ${filtered.length} of $total leads · drag a card to change status'
+                            : 'Showing ${filtered.length} lead${filtered.length == 1 ? '' : 's'} · drop onto a status above to move',
+                        style: Theme.of(context).textTheme.bodyMedium,
+                      ),
                     ),
                   ),
                 ],
@@ -459,18 +489,33 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
 }
 
 
+
+String _leadIdLabel(Map<String, dynamic> lead) => '#${lead['id']}';
+
+String? _followUpLabel(Map<String, dynamic> lead) {
+  final raw = lead['next_follow_up_at'];
+  if (raw == null) return null;
+  try {
+    return DateFormat('d MMM · h:mm a').format(DateTime.parse('$raw').toLocal());
+  } catch (_) {
+    return null;
+  }
+}
+
 class _FilterChip extends StatelessWidget {
   const _FilterChip({
     required this.label,
     required this.selected,
     required this.color,
     required this.onTap,
+    this.count,
   });
 
   final String label;
   final bool selected;
   final Color color;
   final VoidCallback onTap;
+  final int? count;
 
   @override
   Widget build(BuildContext context) {
@@ -493,6 +538,24 @@ class _FilterChip extends StatelessWidget {
               label,
               style: TextStyle(fontWeight: FontWeight.w700, color: selected ? color : AppTheme.ink, fontSize: 12),
             ),
+            if (count != null) ...[
+              const SizedBox(width: 8),
+              Container(
+                padding: const EdgeInsets.symmetric(horizontal: 6, vertical: 1),
+                decoration: BoxDecoration(
+                  color: selected ? color.withValues(alpha: 0.18) : const Color(0xFFF1F5F9),
+                  borderRadius: BorderRadius.circular(999),
+                ),
+                child: Text(
+                  '$count',
+                  style: TextStyle(
+                    fontSize: 11,
+                    fontWeight: FontWeight.w800,
+                    color: selected ? color : AppTheme.muted,
+                  ),
+                ),
+              ),
+            ],
           ],
         ),
       ),
@@ -503,31 +566,196 @@ class _FilterChip extends StatelessWidget {
 class _LeadsKanban extends StatelessWidget {
   const _LeadsKanban({
     required this.leads,
+    required this.allLeads,
     required this.stages,
+    required this.focusStageId,
     required this.onOpen,
     required this.onStageChanged,
   });
 
   final List<Map<String, dynamic>> leads;
+  final List<Map<String, dynamic>> allLeads;
   final List<Map<String, dynamic>> stages;
+  final String? focusStageId;
   final void Function(String id) onOpen;
   final Future<void> Function(Map<String, dynamic> lead, int stageId) onStageChanged;
 
   @override
   Widget build(BuildContext context) {
-    return ListView(
-      scrollDirection: Axis.horizontal,
-      padding: const EdgeInsets.fromLTRB(16, 14, 16, 20),
+    // Focused status: one wide column + compact drop targets for other statuses.
+    if (focusStageId != null) {
+      final focused = stages.firstWhere(
+        (s) => '${s['id']}' == focusStageId,
+        orElse: () => stages.isNotEmpty ? stages.first : <String, dynamic>{},
+      );
+      if (focused.isEmpty) return const SizedBox.shrink();
+      final others = stages.where((s) => '${s['id']}' != focusStageId).toList();
+      return Padding(
+        padding: const EdgeInsets.fromLTRB(16, 12, 16, 12),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            if (others.isNotEmpty) ...[
+              Text(
+                'Drop on a status to move',
+                style: Theme.of(context).textTheme.bodyMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: AppTheme.muted,
+                      fontSize: 12,
+                    ),
+              ),
+              const SizedBox(height: 8),
+              SizedBox(
+                height: 44,
+                child: ListView.separated(
+                  scrollDirection: Axis.horizontal,
+                  itemCount: others.length,
+                  separatorBuilder: (_, __) => const SizedBox(width: 8),
+                  itemBuilder: (context, i) {
+                    final stage = others[i];
+                    final count = allLeads.where((l) => '${l['stage']?['id']}' == '${stage['id']}').length;
+                    return _StageDropChip(
+                      stage: stage,
+                      count: count,
+                      onAccept: (lead) => onStageChanged(lead, stage['id'] as int),
+                    );
+                  },
+                ),
+              ),
+              const SizedBox(height: 12),
+            ],
+            Expanded(
+              child: _KanbanColumn(
+                stage: focused,
+                leads: leads,
+                allStages: stages,
+                wide: true,
+                onOpen: onOpen,
+                onStageChanged: onStageChanged,
+              ),
+            ),
+          ],
+        ),
+      );
+    }
+
+    // All statuses: only show columns that have leads (plus keep empty drop targets slim? — hide empty).
+    final visible = stages.where((s) {
+      return leads.any((l) => '${l['stage']?['id']}' == '${s['id']}');
+    }).toList();
+    final empty = stages.where((s) => !visible.any((v) => v['id'] == s['id'])).toList();
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.stretch,
       children: [
-        for (final stage in stages)
-          _KanbanColumn(
-            stage: stage,
-            leads: leads.where((l) => '${l['stage']?['id']}' == '${stage['id']}').toList(),
-            allStages: stages,
-            onOpen: onOpen,
-            onStageChanged: onStageChanged,
+        if (empty.isNotEmpty)
+          Padding(
+            padding: const EdgeInsets.fromLTRB(16, 10, 16, 0),
+            child: SizedBox(
+              height: 40,
+              child: ListView.separated(
+                scrollDirection: Axis.horizontal,
+                itemCount: empty.length,
+                separatorBuilder: (_, __) => const SizedBox(width: 8),
+                itemBuilder: (context, i) {
+                  final stage = empty[i];
+                  return _StageDropChip(
+                    stage: stage,
+                    count: 0,
+                    compact: true,
+                    onAccept: (lead) => onStageChanged(lead, stage['id'] as int),
+                  );
+                },
+              ),
+            ),
           ),
+        Expanded(
+          child: ListView(
+            scrollDirection: Axis.horizontal,
+            padding: const EdgeInsets.fromLTRB(16, 12, 16, 16),
+            children: [
+              for (final stage in visible)
+                _KanbanColumn(
+                  stage: stage,
+                  leads: leads.where((l) => '${l['stage']?['id']}' == '${stage['id']}').toList(),
+                  allStages: stages,
+                  onOpen: onOpen,
+                  onStageChanged: onStageChanged,
+                ),
+            ],
+          ),
+        ),
       ],
+    );
+  }
+}
+
+class _StageDropChip extends StatefulWidget {
+  const _StageDropChip({
+    required this.stage,
+    required this.count,
+    required this.onAccept,
+    this.compact = false,
+  });
+
+  final Map<String, dynamic> stage;
+  final int count;
+  final Future<void> Function(Map<String, dynamic> lead) onAccept;
+  final bool compact;
+
+  @override
+  State<_StageDropChip> createState() => _StageDropChipState();
+}
+
+class _StageDropChipState extends State<_StageDropChip> {
+  bool _hovering = false;
+
+  @override
+  Widget build(BuildContext context) {
+    final color = AppTheme.stageColor('${widget.stage['code']}');
+    final stageId = widget.stage['id'];
+    return DragTarget<Map<String, dynamic>>(
+      onWillAcceptWithDetails: (details) {
+        final fromId = details.data['stage']?['id'];
+        final ok = '$fromId' != '$stageId';
+        setState(() => _hovering = ok);
+        return ok;
+      },
+      onLeave: (_) => setState(() => _hovering = false),
+      onAcceptWithDetails: (details) async {
+        setState(() => _hovering = false);
+        await widget.onAccept(details.data);
+      },
+      builder: (context, candidate, rejected) {
+        return AnimatedContainer(
+          duration: const Duration(milliseconds: 140),
+          padding: EdgeInsets.symmetric(horizontal: widget.compact ? 10 : 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: _hovering ? color.withValues(alpha: 0.16) : Colors.white,
+            borderRadius: BorderRadius.circular(10),
+            border: Border.all(color: _hovering ? color : AppTheme.line, width: _hovering ? 2 : 1),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+              const SizedBox(width: 8),
+              Text(
+                _hovering ? 'Drop · ${widget.stage['name']}' : '${widget.stage['name']}',
+                style: TextStyle(
+                  fontWeight: FontWeight.w700,
+                  fontSize: 12,
+                  color: _hovering ? color : AppTheme.ink,
+                ),
+              ),
+              if (!widget.compact || widget.count > 0) ...[
+                const SizedBox(width: 8),
+                Text('${widget.count}', style: const TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: AppTheme.muted)),
+              ],
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -539,6 +767,7 @@ class _KanbanColumn extends StatefulWidget {
     required this.allStages,
     required this.onOpen,
     required this.onStageChanged,
+    this.wide = false,
   });
 
   final Map<String, dynamic> stage;
@@ -546,6 +775,7 @@ class _KanbanColumn extends StatefulWidget {
   final List<Map<String, dynamic>> allStages;
   final void Function(String id) onOpen;
   final Future<void> Function(Map<String, dynamic> lead, int stageId) onStageChanged;
+  final bool wide;
 
   @override
   State<_KanbanColumn> createState() => _KanbanColumnState();
@@ -558,7 +788,7 @@ class _KanbanColumnState extends State<_KanbanColumn> {
   Widget build(BuildContext context) {
     final color = AppTheme.stageColor('${widget.stage['code']}');
     final stageId = widget.stage['id'] as int;
-    return DragTarget<Map<String, dynamic>>(
+    final column = DragTarget<Map<String, dynamic>>(
       onWillAcceptWithDetails: (details) {
         final fromId = details.data['stage']?['id'];
         final ok = '$fromId' != '$stageId';
@@ -573,8 +803,8 @@ class _KanbanColumnState extends State<_KanbanColumn> {
       builder: (context, candidate, rejected) {
         return AnimatedContainer(
           duration: const Duration(milliseconds: 160),
-          width: 300,
-          margin: const EdgeInsets.only(right: 14),
+          width: widget.wide ? null : 300,
+          margin: widget.wide ? EdgeInsets.zero : const EdgeInsets.only(right: 14),
           decoration: BoxDecoration(
             color: _hovering ? color.withValues(alpha: 0.10) : const Color(0xFFF0F3F8),
             borderRadius: BorderRadius.circular(14),
@@ -613,26 +843,50 @@ class _KanbanColumnState extends State<_KanbanColumn> {
                   child: Text('Drop here', style: TextStyle(color: color, fontWeight: FontWeight.w700, fontSize: 12)),
                 ),
               Expanded(
-                child: ListView.builder(
-                  padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
-                  itemCount: widget.leads.length,
-                  itemBuilder: (context, i) {
-                    final lead = widget.leads[i];
-                    return _LeadCard(
-                      lead: lead,
-                      stages: widget.allStages,
-                      accent: color,
-                      onOpen: () => widget.onOpen('${lead['id']}'),
-                      onStageChanged: (id) => widget.onStageChanged(lead, id),
-                    );
-                  },
-                ),
+                child: widget.wide
+                    ? GridView.builder(
+                        padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+                        gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
+                          maxCrossAxisExtent: 320,
+                          mainAxisExtent: 132,
+                          crossAxisSpacing: 10,
+                          mainAxisSpacing: 10,
+                        ),
+                        itemCount: widget.leads.length,
+                        itemBuilder: (context, i) {
+                          final lead = widget.leads[i];
+                          return _LeadCard(
+                            lead: lead,
+                            stages: widget.allStages,
+                            accent: color,
+                            onOpen: () => widget.onOpen('${lead['id']}'),
+                            onStageChanged: (id) => widget.onStageChanged(lead, id),
+                          );
+                        },
+                      )
+                    : ListView.builder(
+                        padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
+                        itemCount: widget.leads.length,
+                        itemBuilder: (context, i) {
+                          final lead = widget.leads[i];
+                          return _LeadCard(
+                            lead: lead,
+                            stages: widget.allStages,
+                            accent: color,
+                            onOpen: () => widget.onOpen('${lead['id']}'),
+                            onStageChanged: (id) => widget.onStageChanged(lead, id),
+                          );
+                        },
+                      ),
               ),
             ],
           ),
         );
       },
     );
+
+    if (widget.wide) return column;
+    return column;
   }
 }
 
@@ -654,6 +908,10 @@ class _LeadCard extends StatelessWidget {
   Widget _cardBody({required bool dragging}) {
     final name = '${lead['name']}';
     final mobile = '${lead['mobile']}';
+    final idLabel = _leadIdLabel(lead);
+    final followUp = _followUpLabel(lead);
+    final location = '${lead['preferred_location'] ?? ''}'.trim();
+
     return Material(
       color: Colors.white,
       elevation: dragging ? 6 : 0,
@@ -662,7 +920,7 @@ class _LeadCard extends StatelessWidget {
         onTap: dragging ? null : onOpen,
         borderRadius: BorderRadius.circular(12),
         child: Container(
-          padding: const EdgeInsets.all(12),
+          padding: const EdgeInsets.fromLTRB(12, 10, 8, 10),
           decoration: BoxDecoration(
             borderRadius: BorderRadius.circular(12),
             border: Border.all(color: dragging ? accent : AppTheme.line, width: dragging ? 1.5 : 1),
@@ -674,16 +932,31 @@ class _LeadCard extends StatelessWidget {
                 children: [
                   Container(
                     width: 4,
-                    height: 28,
+                    height: 36,
                     decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4)),
                   ),
                   const SizedBox(width: 10),
                   Expanded(
-                    child: Text(
-                      name,
-                      style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          idLabel,
+                          style: TextStyle(
+                            fontSize: 11,
+                            fontWeight: FontWeight.w800,
+                            color: accent,
+                            letterSpacing: 0.2,
+                          ),
+                        ),
+                        const SizedBox(height: 2),
+                        Text(
+                          name,
+                          style: const TextStyle(fontWeight: FontWeight.w800, fontSize: 14),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ],
                     ),
                   ),
                   if (!dragging)
@@ -693,24 +966,9 @@ class _LeadCard extends StatelessWidget {
                       onPressed: () => launchUrl(Uri(scheme: 'tel', path: mobile)),
                       icon: const Icon(Icons.call_rounded, size: 18, color: AppTheme.brandGreenDark),
                     ),
-                ],
-              ),
-              const SizedBox(height: 6),
-              Text(mobile, style: const TextStyle(color: AppTheme.muted, fontWeight: FontWeight.w600)),
-              const SizedBox(height: 8),
-              Row(
-                children: [
-                  const Icon(Icons.drag_indicator, size: 16, color: AppTheme.muted),
-                  const SizedBox(width: 4),
-                  Expanded(
-                    child: Text(
-                      dragging ? 'Drop on a status column' : 'Drag to another status',
-                      style: const TextStyle(fontSize: 11, color: AppTheme.muted, fontWeight: FontWeight.w600),
-                    ),
-                  ),
                   if (!dragging)
                     PopupMenuButton<int>(
-                      tooltip: 'Move stage',
+                      tooltip: 'Move status',
                       padding: EdgeInsets.zero,
                       icon: const Icon(Icons.swap_horiz_rounded, size: 18, color: AppTheme.brandGoldDeep),
                       onSelected: onStageChanged,
@@ -724,6 +982,42 @@ class _LeadCard extends StatelessWidget {
                     ),
                 ],
               ),
+              const SizedBox(height: 6),
+              Text(mobile, style: const TextStyle(color: AppTheme.muted, fontWeight: FontWeight.w600, fontSize: 13)),
+              if (location.isNotEmpty) ...[
+                const SizedBox(height: 2),
+                Text(
+                  location,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                  style: const TextStyle(color: AppTheme.muted, fontSize: 12),
+                ),
+              ],
+              if (followUp != null) ...[
+                const SizedBox(height: 6),
+                Row(
+                  children: [
+                    Icon(Icons.event_available, size: 14, color: accent),
+                    const SizedBox(width: 4),
+                    Expanded(
+                      child: Text(
+                        followUp,
+                        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w700, color: accent),
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ),
+                    if (!dragging)
+                      const Icon(Icons.drag_indicator, size: 16, color: AppTheme.muted),
+                  ],
+                ),
+              ] else if (!dragging) ...[
+                const SizedBox(height: 4),
+                const Align(
+                  alignment: Alignment.centerRight,
+                  child: Icon(Icons.drag_indicator, size: 16, color: AppTheme.muted),
+                ),
+              ],
             ],
           ),
         ),
@@ -735,14 +1029,13 @@ class _LeadCard extends StatelessWidget {
   Widget build(BuildContext context) {
     return Padding(
       padding: const EdgeInsets.only(bottom: 10),
-      // Immediate drag (desktop/web mouse) — no long-press required.
       child: Draggable<Map<String, dynamic>>(
         data: lead,
         affinity: Axis.horizontal,
         feedback: Material(
           color: Colors.transparent,
           elevation: 8,
-          child: SizedBox(width: 260, child: _cardBody(dragging: true)),
+          child: SizedBox(width: 280, child: _cardBody(dragging: true)),
         ),
         childWhenDragging: Opacity(opacity: 0.35, child: _cardBody(dragging: false)),
         child: _cardBody(dragging: false),
@@ -779,6 +1072,7 @@ class _LeadsTable extends StatelessWidget {
                 dataRowMinHeight: 58,
                 dataRowMaxHeight: 68,
                 columns: const [
+                  DataColumn(label: Text('ID')),
                   DataColumn(label: Text('Lead')),
                   DataColumn(label: Text('Mobile')),
                   DataColumn(label: Text('Stage')),
@@ -792,6 +1086,7 @@ class _LeadsTable extends StatelessWidget {
                     DataRow(
                       onSelectChanged: (_) => onOpen('${lead['id']}'),
                       cells: [
+                        DataCell(Text(_leadIdLabel(lead), style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.brandGreenDark))),
                         DataCell(Text('${lead['name']}', style: const TextStyle(fontWeight: FontWeight.w800))),
                         DataCell(Text('${lead['mobile']}')),
                         DataCell(
