@@ -582,6 +582,73 @@ String? _followUpLabel(Map<String, dynamic> lead) {
   }
 }
 
+String? _formAnswerMatching(Map<String, dynamic> lead, List<String> needles) {
+  final answers = lead['form_answers'];
+  if (answers is! List) return null;
+  for (final raw in answers) {
+    if (raw is! Map) continue;
+    final q = '${raw['question'] ?? ''}'.toLowerCase();
+    if (!needles.any(q.contains)) continue;
+    final a = '${raw['answer'] ?? ''}'.trim();
+    if (a.isNotEmpty) return a;
+  }
+  return null;
+}
+
+/// 2/3 BHK, Shop, etc. — structured fields first, then Meta form answers.
+String? _leadConfigLabel(Map<String, dynamic> lead) {
+  final cfg = '${lead['property_configuration']?['name'] ?? ''}'.trim();
+  final type = '${lead['property_type']?['name'] ?? ''}'.trim();
+  if (cfg.isNotEmpty && type.isNotEmpty) {
+    final typeLower = type.toLowerCase();
+    if (typeLower == 'shop' || typeLower == 'office' || typeLower == 'plot') {
+      return type;
+    }
+    return cfg;
+  }
+  if (cfg.isNotEmpty) return cfg;
+  if (type.isNotEmpty) return type;
+  return _formAnswerMatching(lead, [
+    'bhk',
+    'configuration',
+    'unit type',
+    'property type',
+    'looking for',
+    'interested in',
+    'requirement',
+    'shop',
+  ]);
+}
+
+String? _leadBudgetLabel(Map<String, dynamic> lead) {
+  return _formAnswerMatching(lead, ['budget', 'price range', 'investment', 'afford']);
+}
+
+class _LeadInfoChip extends StatelessWidget {
+  const _LeadInfoChip({required this.label, required this.color});
+
+  final String label;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: 8, vertical: 3),
+      decoration: BoxDecoration(
+        color: color.withValues(alpha: 0.12),
+        borderRadius: BorderRadius.circular(6),
+        border: Border.all(color: color.withValues(alpha: 0.28)),
+      ),
+      child: Text(
+        label,
+        style: TextStyle(fontSize: 11, fontWeight: FontWeight.w800, color: color),
+        maxLines: 1,
+        overflow: TextOverflow.ellipsis,
+      ),
+    );
+  }
+}
+
 class _FilterChip extends StatelessWidget {
   const _FilterChip({
     required this.label,
@@ -1079,8 +1146,8 @@ class _KanbanColumnState extends State<_KanbanColumn> {
                     ? GridView.builder(
                         padding: const EdgeInsets.fromLTRB(10, 0, 10, 12),
                         gridDelegate: const SliverGridDelegateWithMaxCrossAxisExtent(
-                          maxCrossAxisExtent: 320,
-                          mainAxisExtent: 132,
+                          maxCrossAxisExtent: 340,
+                          mainAxisExtent: 156,
                           crossAxisSpacing: 10,
                           mainAxisSpacing: 10,
                         ),
@@ -1148,6 +1215,12 @@ class _LeadCard extends StatelessWidget {
     final idLabel = _leadIdLabel(lead);
     final followUp = _followUpLabel(lead);
     final location = '${lead['preferred_location'] ?? ''}'.trim();
+    final config = _leadConfigLabel(lead);
+    final budget = _leadBudgetLabel(lead);
+    final interestBits = [
+      if (config != null && config.isNotEmpty) config,
+      if (budget != null && budget.isNotEmpty) budget,
+    ];
 
     return Material(
       color: Colors.white,
@@ -1167,7 +1240,7 @@ class _LeadCard extends StatelessWidget {
             children: [
               Container(
                 width: 4,
-                height: compact ? 48 : 52,
+                height: interestBits.isNotEmpty ? (compact ? 64 : 68) : (compact ? 48 : 52),
                 decoration: BoxDecoration(color: accent, borderRadius: BorderRadius.circular(4)),
               ),
               const SizedBox(width: 10),
@@ -1194,8 +1267,21 @@ class _LeadCard extends StatelessWidget {
                     ),
                     const SizedBox(height: 4),
                     Text(mobile, style: const TextStyle(color: AppTheme.muted, fontWeight: FontWeight.w600, fontSize: 13)),
+                    if (interestBits.isNotEmpty) ...[
+                      const SizedBox(height: 4),
+                      Wrap(
+                        spacing: 6,
+                        runSpacing: 4,
+                        children: [
+                          if (config != null && config.isNotEmpty)
+                            _LeadInfoChip(label: config, color: accent),
+                          if (budget != null && budget.isNotEmpty)
+                            _LeadInfoChip(label: budget, color: AppTheme.brandGoldDeep),
+                        ],
+                      ),
+                    ],
                     if (location.isNotEmpty || followUp != null) ...[
-                      const SizedBox(height: 2),
+                      const SizedBox(height: 4),
                       Text(
                         [
                           if (location.isNotEmpty) location,
@@ -1307,6 +1393,8 @@ class _LeadsTable extends StatelessWidget {
                   DataColumn(label: Text('ID')),
                   DataColumn(label: Text('Lead')),
                   DataColumn(label: Text('Mobile')),
+                  DataColumn(label: Text('Config')),
+                  DataColumn(label: Text('Budget')),
                   DataColumn(label: Text('Stage')),
                   DataColumn(label: Text('Source')),
                   DataColumn(label: Text('Location')),
@@ -1321,6 +1409,8 @@ class _LeadsTable extends StatelessWidget {
                         DataCell(Text(_leadIdLabel(lead), style: const TextStyle(fontWeight: FontWeight.w800, color: AppTheme.brandGreenDark))),
                         DataCell(Text('${lead['name']}', style: const TextStyle(fontWeight: FontWeight.w800))),
                         DataCell(Text('${lead['mobile']}')),
+                        DataCell(Text(_leadConfigLabel(lead) ?? '—')),
+                        DataCell(Text(_leadBudgetLabel(lead) ?? '—')),
                         DataCell(
                           DropdownButtonHideUnderline(
                             child: DropdownButton<int>(
