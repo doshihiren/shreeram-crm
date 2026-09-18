@@ -5,8 +5,8 @@ import 'package:intl/intl.dart';
 import 'package:shreeram_crm/core/network/api_client.dart';
 import 'package:shreeram_crm/core/network/lookup_providers.dart';
 import 'package:shreeram_crm/core/theme/app_theme.dart';
+import 'package:shreeram_crm/core/utils/phone_links.dart';
 import 'package:shreeram_crm/features/leads/stage_change_dialog.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 /// Loads ALL leads for the board (paginates until complete — never stops at 50).
 final leadsBoardProvider = FutureProvider.family<Map<String, dynamic>, String?>((ref, stageId) async {
@@ -1213,8 +1213,14 @@ class _LeadCard extends StatelessWidget {
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   tooltip: 'Call',
-                  onPressed: () => launchUrl(Uri(scheme: 'tel', path: mobile)),
+                  onPressed: () => openPhoneCall(mobile),
                   icon: const Icon(Icons.call_rounded, size: 20, color: AppTheme.brandGreenDark),
+                ),
+                IconButton(
+                  visualDensity: VisualDensity.compact,
+                  tooltip: 'WhatsApp',
+                  onPressed: () => openWhatsApp(mobile),
+                  icon: const Icon(Icons.chat_rounded, size: 20, color: Color(0xFF25D366)),
                 ),
                 PopupMenuButton<int>(
                   tooltip: 'Move status',
@@ -1341,8 +1347,13 @@ class _LeadsTable extends StatelessWidget {
                             children: [
                               IconButton(
                                 tooltip: 'Call',
-                                onPressed: () => launchUrl(Uri(scheme: 'tel', path: '${lead['mobile']}')),
+                                onPressed: () => openPhoneCall('${lead['mobile']}'),
                                 icon: const Icon(Icons.call_rounded, color: AppTheme.brandGreenDark),
+                              ),
+                              IconButton(
+                                tooltip: 'WhatsApp',
+                                onPressed: () => openWhatsApp('${lead['mobile']}'),
+                                icon: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
                               ),
                               IconButton(
                                 tooltip: 'Open',

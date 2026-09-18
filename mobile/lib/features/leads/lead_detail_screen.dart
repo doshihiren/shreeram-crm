@@ -5,9 +5,9 @@ import 'package:intl/intl.dart';
 import 'package:shreeram_crm/core/network/api_client.dart';
 import 'package:shreeram_crm/core/network/lookup_providers.dart';
 import 'package:shreeram_crm/core/theme/app_theme.dart';
+import 'package:shreeram_crm/core/utils/phone_links.dart';
 import 'package:shreeram_crm/features/leads/leads_screen.dart';
 import 'package:shreeram_crm/features/leads/stage_change_dialog.dart';
-import 'package:url_launcher/url_launcher.dart';
 
 final leadDetailProvider = FutureProvider.family<Map<String, dynamic>, String>((ref, id) async {
   final res = await ref.watch(dioProvider).get('/leads/$id');
@@ -337,16 +337,13 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
                             runSpacing: 10,
                             children: [
                               FilledButton.tonalIcon(
-                                onPressed: () => launchUrl(Uri(scheme: 'tel', path: mobile)),
+                                onPressed: () => openPhoneCall(mobile),
                                 icon: const Icon(Icons.call_rounded),
                                 label: const Text('Call'),
                               ),
                               FilledButton.tonalIcon(
-                                onPressed: () {
-                                  final m = mobile.replaceAll(RegExp(r'\D'), '');
-                                  launchUrl(Uri.parse('https://wa.me/$m'), mode: LaunchMode.externalApplication);
-                                },
-                                icon: const Icon(Icons.chat_rounded),
+                                onPressed: () => openWhatsApp(mobile),
+                                icon: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
                                 label: const Text('WhatsApp'),
                               ),
                             ],

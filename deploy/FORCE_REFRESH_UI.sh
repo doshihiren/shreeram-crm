@@ -11,7 +11,7 @@ git pull origin cursor/crm-implementation-523b
 echo "COMMIT=$(git rev-parse --short HEAD)"
 test -f deploy/web-dist-v3/index.html
 grep -n 'base href="/shreeram-crm/v3/"' deploy/web-dist-v3/index.html
-grep -nE "UI build 2026-09-18-MOBILEUX|Leads ·|Drop on a status" deploy/web-dist-v3/main.dart.js | head -3
+grep -nE "UI build 2026-09-18-WA|wa.me|WhatsApp" deploy/web-dist-v3/main.dart.js | head -5
 test ! -d deploy/web-dist-v3/canvaskit
 
 rm -rf backend/public/app-v3
@@ -19,7 +19,7 @@ mkdir -p backend/public/app-v3
 cp -a deploy/web-dist-v3/. backend/public/app-v3/
 
 grep -n 'base href="/shreeram-crm/v3/"' backend/public/app-v3/index.html
-grep -n "UI build 2026-09-18-MOBILEUX" backend/public/app-v3/main.dart.js | head -1
+grep -n "UI build 2026-09-18-WA" backend/public/app-v3/main.dart.js | head -1
 ls -la backend/public/app-v3/index.html backend/public/app-v3/main.dart.js backend/public/app-v3/splash-logo.jpg
 
 cd backend
@@ -33,6 +33,6 @@ cat <<'EOF'
 FILES READY at backend/public/app-v3
 
 Incognito: https://aweliontech.com/shreeram-crm/v3/
-Expect: UI build 2026-09-18-MOBILEUX
-Mobile: compact toolbar, full-width lead list, drop bar only while dragging
+Expect: UI build 2026-09-18-WA
+WhatsApp button beside Call on board / table / detail (wa.me link)
 EOF
