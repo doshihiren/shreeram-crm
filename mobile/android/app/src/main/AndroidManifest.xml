@@ -1,6 +1,6 @@
 <manifest xmlns:android="http://schemas.android.com/apk/res/android">
     <application
-        android:label="shreeram_crm"
+        android:label="Shreeram CRM"
         android:name="${applicationName}"
         android:icon="@mipmap/ic_launcher">
         <activity
