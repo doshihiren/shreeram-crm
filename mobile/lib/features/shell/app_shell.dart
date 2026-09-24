@@ -24,7 +24,11 @@ class AppShell extends ConsumerWidget {
     final user = ref.watch(authControllerProvider).user;
     final isAdmin = user?.isStaffAdmin ?? false;
     final location = GoRouterState.of(context).uri.toString();
-    final wide = MediaQuery.sizeOf(context).width >= 980;
+    // Leads uses the compact shell on every viewport because that is the
+    // rendering mode proven stable in production. Other routes retain the
+    // normal desktop sidebar at >= 980px.
+    final wide = !location.startsWith('/leads') &&
+        MediaQuery.sizeOf(context).width >= 980;
     final destinations = <_NavItem>[
       const _NavItem('/dashboard', Icons.dashboard_outlined, 'Home'),
       const _NavItem('/leads', Icons.view_kanban_outlined, 'Leads'),
