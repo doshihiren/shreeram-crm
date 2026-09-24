@@ -881,8 +881,12 @@ class _LeadsKanban extends StatelessWidget {
     }).toList();
     final empty = stages.where((s) => !visible.any((v) => v['id'] == s['id'])).toList();
 
-    // Mobile All: vertical sections (easier than tiny horizontal columns)
-    if (compact) {
+    // Use the proven vertical card layout on normal desktop widths too.
+    // The wide horizontal Kanban remains available only on very large displays.
+    // This avoids the desktop canvas/layout issue where cards appeared only
+    // after DevTools reduced the viewport width.
+    final useVerticalLayout = compact || MediaQuery.sizeOf(context).width < 1600;
+    if (useVerticalLayout) {
       return ListView.builder(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
         itemCount: visible.length,
