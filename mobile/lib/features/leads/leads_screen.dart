@@ -422,7 +422,7 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
                     );
                     final counts = _stageCounts(allLeads);
                     return SizedBox(
-                      height: compact ? 36 : null,
+                      height: compact ? 36 : 44,
                       child: ListView(
                         scrollDirection: Axis.horizontal,
                         children: [
