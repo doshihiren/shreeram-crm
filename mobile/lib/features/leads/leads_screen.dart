@@ -304,8 +304,10 @@ class _LeadsScreenState extends ConsumerState<LeadsScreen> {
   Widget build(BuildContext context) {
     final stagesAsync = ref.watch(stagesProvider);
     final leadsAsync = ref.watch(leadsBoardProvider(null));
-    final width = MediaQuery.sizeOf(context).width;
-    final compact = width < 900;
+    // Force the proven compact renderer for Leads on all viewport sizes.
+    // Opening DevTools reduced the viewport below this breakpoint and made
+    // the page render correctly; use that same rendering path directly.
+    const compact = true;
 
     return Column(
       children: [
