@@ -885,7 +885,10 @@ class _LeadsKanban extends StatelessWidget {
     // The wide horizontal Kanban remains available only on very large displays.
     // This avoids the desktop canvas/layout issue where cards appeared only
     // after DevTools reduced the viewport width.
-    final useVerticalLayout = compact || MediaQuery.sizeOf(context).width < 1600;
+    // Production stability: use the same proven card-list renderer on every
+    // viewport. The old wide horizontal Kanban branch can render blank on
+    // desktop CanvasKit while the data is present.
+    const useVerticalLayout = true;
     if (useVerticalLayout) {
       return ListView.builder(
         padding: const EdgeInsets.fromLTRB(12, 8, 12, 12),
