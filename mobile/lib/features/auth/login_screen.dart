@@ -13,35 +13,11 @@ class LoginScreen extends ConsumerStatefulWidget {
 }
 
 class _LoginScreenState extends ConsumerState<LoginScreen> {
+  final _formKey = GlobalKey<FormState>();
+  final _email = TextEditingController(text: 'info@shreeram-developers.com');
+  final _password = TextEditingController();
+  bool _obscurePassword = true;
   bool _bootstrapped = false;
-  String? _pendingRole;
-
-  static const _demos = <_DemoLogin>[
-    _DemoLogin(
-      role: 'Owner',
-      subtitle: 'Full access · Meta · statuses',
-      email: 'owner@shreeram.local',
-      password: 'ChangeMeOwner1!',
-      icon: Icons.workspace_premium_rounded,
-      color: AppTheme.brandGoldDeep,
-    ),
-    _DemoLogin(
-      role: 'Admin',
-      subtitle: 'Team + pipeline management',
-      email: 'admin@shreeram.local',
-      password: 'ChangeMeAdmin1!',
-      icon: Icons.admin_panel_settings_rounded,
-      color: AppTheme.brandGreenDark,
-    ),
-    _DemoLogin(
-      role: 'Sales',
-      subtitle: 'My leads · call · follow-ups',
-      email: 'sales@shreeram.local',
-      password: 'ChangeMeSales1!',
-      icon: Icons.headset_mic_rounded,
-      color: const Color(0xFF2391CB),
-    ),
-  ];
 
   @override
   void initState() {
@@ -53,10 +29,21 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
     });
   }
 
-  Future<void> _quickLogin(_DemoLogin demo) async {
-    setState(() => _pendingRole = demo.role);
-    await ref.read(authControllerProvider.notifier).login(demo.email, demo.password);
-    if (mounted) setState(() => _pendingRole = null);
+  @override
+  void dispose() {
+    _email.dispose();
+    _password.dispose();
+    super.dispose();
+  }
+
+  Future<void> _submit() async {
+    if (!(_formKey.currentState?.validate() ?? false)) return;
+    FocusScope.of(context).unfocus();
+
+    await ref.read(authControllerProvider.notifier).login(
+          _email.text.trim(),
+          _password.text,
+        );
   }
 
   @override
@@ -70,28 +57,55 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
           gradient: LinearGradient(
             begin: Alignment.topLeft,
             end: Alignment.bottomRight,
-            colors: [AppTheme.limestone, AppTheme.mist, Color(0xFFE8F0E9), Color(0xFFF6EFDA)],
+            colors: [
+              AppTheme.limestone,
+              AppTheme.mist,
+              Color(0xFFE8F0E9),
+              Color(0xFFF6EFDA),
+            ],
           ),
         ),
         child: Center(
-          child: ConstrainedBox(
-            constraints: BoxConstraints(maxWidth: wide ? 980 : 460),
-            child: Padding(
-              padding: const EdgeInsets.all(24),
+          child: SingleChildScrollView(
+            padding: const EdgeInsets.all(24),
+            child: ConstrainedBox(
+              constraints: BoxConstraints(maxWidth: wide ? 980 : 460),
               child: wide
                   ? Row(
                       children: [
                         const Expanded(child: _BrandPanel()),
                         const SizedBox(width: 28),
-                        Expanded(child: _QuickLoginPanel(auth: auth, pendingRole: _pendingRole, demos: _demos, onLogin: _quickLogin)),
+                        Expanded(
+                          child: _LoginPanel(
+                            formKey: _formKey,
+                            email: _email,
+                            password: _password,
+                            obscurePassword: _obscurePassword,
+                            auth: auth,
+                            onTogglePassword: () => setState(
+                              () => _obscurePassword = !_obscurePassword,
+                            ),
+                            onSubmit: _submit,
+                          ),
+                        ),
                       ],
                     )
-                  : ListView(
-                      shrinkWrap: true,
+                  : Column(
+                      mainAxisSize: MainAxisSize.min,
                       children: [
                         const _BrandPanel(compact: true),
                         const SizedBox(height: 22),
-                        _QuickLoginPanel(auth: auth, pendingRole: _pendingRole, demos: _demos, onLogin: _quickLogin),
+                        _LoginPanel(
+                          formKey: _formKey,
+                          email: _email,
+                          password: _password,
+                          obscurePassword: _obscurePassword,
+                          auth: auth,
+                          onTogglePassword: () => setState(
+                            () => _obscurePassword = !_obscurePassword,
+                          ),
+                          onSubmit: _submit,
+                        ),
                       ],
                     ),
             ),
@@ -102,26 +116,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 }
 
-class _DemoLogin {
-  const _DemoLogin({
-    required this.role,
-    required this.subtitle,
-    required this.email,
-    required this.password,
-    required this.icon,
-    required this.color,
-  });
-
-  final String role;
-  final String subtitle;
-  final String email;
-  final String password;
-  final IconData icon;
-  final Color color;
-}
-
 class _BrandPanel extends StatelessWidget {
   const _BrandPanel({this.compact = false});
+
   final bool compact;
 
   @override
@@ -135,130 +132,137 @@ class _BrandPanel extends StatelessWidget {
           BrandLogo(height: compact ? 64 : 88, showWordmark: false),
           const SizedBox(height: 18),
           Text(
-            'Lead CRM for your sales floor',
-            style: Theme.of(context).textTheme.titleMedium?.copyWith(color: AppTheme.ink),
+            'Shreeram Developers CRM',
+            style: Theme.of(context).textTheme.titleLarge?.copyWith(
+                  color: AppTheme.ink,
+                  fontWeight: FontWeight.w800,
+                ),
           ),
           const SizedBox(height: 10),
           Text(
-            'Tap a role to enter — no password typing for now.',
+            'Sign in with your CRM account to access leads, follow-ups, site visits and pipeline activity.',
             style: Theme.of(context).textTheme.bodyMedium,
           ),
-          const SizedBox(height: 14),
-          const StatusPill(label: 'UI build 2026-09-18-INTEREST'),
         ],
       ),
     );
   }
 }
 
-class _QuickLoginPanel extends StatelessWidget {
-  const _QuickLoginPanel({
+class _LoginPanel extends StatelessWidget {
+  const _LoginPanel({
+    required this.formKey,
+    required this.email,
+    required this.password,
+    required this.obscurePassword,
     required this.auth,
-    required this.pendingRole,
-    required this.demos,
-    required this.onLogin,
+    required this.onTogglePassword,
+    required this.onSubmit,
   });
 
+  final GlobalKey<FormState> formKey;
+  final TextEditingController email;
+  final TextEditingController password;
+  final bool obscurePassword;
   final AuthState auth;
-  final String? pendingRole;
-  final List<_DemoLogin> demos;
-  final Future<void> Function(_DemoLogin demo) onLogin;
+  final VoidCallback onTogglePassword;
+  final Future<void> Function() onSubmit;
 
   @override
   Widget build(BuildContext context) {
     return SoftPanel(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.stretch,
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text('Continue as', style: Theme.of(context).textTheme.headlineSmall),
-          const SizedBox(height: 6),
-          Text(
-            'Demo access — we will lock this down before go-live.',
-            style: Theme.of(context).textTheme.bodyMedium,
-          ),
-          const SizedBox(height: 18),
-          for (final demo in demos) ...[
-            _RoleButton(
-              demo: demo,
-              loading: auth.loading && pendingRole == demo.role,
-              disabled: auth.loading,
-              onTap: () => onLogin(demo),
-            ),
-            const SizedBox(height: 12),
-          ],
-          if (auth.error != null) ...[
-            const SizedBox(height: 4),
-            Text(auth.error!, style: const TextStyle(color: AppTheme.danger, fontWeight: FontWeight.w700)),
-          ],
-        ],
-      ),
-    );
-  }
-}
-
-class _RoleButton extends StatelessWidget {
-  const _RoleButton({
-    required this.demo,
-    required this.loading,
-    required this.disabled,
-    required this.onTap,
-  });
-
-  final _DemoLogin demo;
-  final bool loading;
-  final bool disabled;
-  final VoidCallback onTap;
-
-  @override
-  Widget build(BuildContext context) {
-    return Material(
-      color: Colors.white,
-      borderRadius: BorderRadius.circular(14),
-      child: InkWell(
-        onTap: disabled ? null : onTap,
-        borderRadius: BorderRadius.circular(14),
-        child: Ink(
-          decoration: BoxDecoration(
-            borderRadius: BorderRadius.circular(14),
-            border: Border.all(color: demo.color.withValues(alpha: 0.35)),
-            gradient: LinearGradient(
-              colors: [
-                demo.color.withValues(alpha: 0.08),
-                Colors.white,
-              ],
-            ),
-          ),
-          child: Padding(
-            padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 16),
-            child: Row(
-              children: [
-                Container(
-                  width: 46,
-                  height: 46,
-                  decoration: BoxDecoration(
-                    color: demo.color.withValues(alpha: 0.14),
-                    borderRadius: BorderRadius.circular(12),
-                  ),
-                  child: Icon(demo.icon, color: demo.color),
+      child: Form(
+        key: formKey,
+        child: AutofillGroup(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Text(
+                'Sign in',
+                style: Theme.of(context).textTheme.headlineSmall?.copyWith(
+                      fontWeight: FontWeight.w800,
+                    ),
+              ),
+              const SizedBox(height: 6),
+              Text(
+                'Enter your email and password.',
+                style: Theme.of(context).textTheme.bodyMedium,
+              ),
+              const SizedBox(height: 22),
+              TextFormField(
+                controller: email,
+                enabled: !auth.loading,
+                keyboardType: TextInputType.emailAddress,
+                textInputAction: TextInputAction.next,
+                autofillHints: const [AutofillHints.username, AutofillHints.email],
+                decoration: const InputDecoration(
+                  labelText: 'Email',
+                  prefixIcon: Icon(Icons.email_outlined),
                 ),
-                const SizedBox(width: 14),
-                Expanded(
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
-                    children: [
-                      Text(demo.role, style: TextStyle(fontWeight: FontWeight.w800, fontSize: 16, color: demo.color)),
-                      const SizedBox(height: 2),
-                      Text(demo.subtitle, style: Theme.of(context).textTheme.bodyMedium),
-                    ],
+                validator: (value) {
+                  final v = value?.trim() ?? '';
+                  if (v.isEmpty) return 'Enter your email';
+                  if (!v.contains('@')) return 'Enter a valid email';
+                  return null;
+                },
+              ),
+              const SizedBox(height: 14),
+              TextFormField(
+                controller: password,
+                enabled: !auth.loading,
+                obscureText: obscurePassword,
+                textInputAction: TextInputAction.done,
+                autofillHints: const [AutofillHints.password],
+                onFieldSubmitted: (_) {
+                  if (!auth.loading) onSubmit();
+                },
+                decoration: InputDecoration(
+                  labelText: 'Password',
+                  prefixIcon: const Icon(Icons.lock_outline_rounded),
+                  suffixIcon: IconButton(
+                    tooltip: obscurePassword ? 'Show password' : 'Hide password',
+                    onPressed: onTogglePassword,
+                    icon: Icon(
+                      obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                    ),
                   ),
                 ),
-                if (loading)
-                  const SizedBox(width: 22, height: 22, child: CircularProgressIndicator(strokeWidth: 2))
-                else
-                  Icon(Icons.arrow_forward_rounded, color: demo.color),
+                validator: (value) {
+                  if (value == null || value.isEmpty) {
+                    return 'Enter your password';
+                  }
+                  return null;
+                },
+              ),
+              if (auth.error != null) ...[
+                const SizedBox(height: 14),
+                Text(
+                  auth.error!,
+                  style: const TextStyle(
+                    color: AppTheme.danger,
+                    fontWeight: FontWeight.w700,
+                  ),
+                ),
               ],
-            ),
+              const SizedBox(height: 20),
+              FilledButton.icon(
+                onPressed: auth.loading ? null : onSubmit,
+                icon: auth.loading
+                    ? const SizedBox(
+                        width: 18,
+                        height: 18,
+                        child: CircularProgressIndicator(strokeWidth: 2),
+                      )
+                    : const Icon(Icons.login_rounded),
+                label: Text(auth.loading ? 'Signing in...' : 'Sign in'),
+                style: FilledButton.styleFrom(
+                  padding: const EdgeInsets.symmetric(vertical: 16),
+                ),
+              ),
+            ],
           ),
         ),
       ),
