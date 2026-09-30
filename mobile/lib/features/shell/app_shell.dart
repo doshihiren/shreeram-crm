@@ -104,7 +104,7 @@ class _AppShellState extends ConsumerState<AppShell> {
   }
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  Widget build(BuildContext context) {
     final user = ref.watch(authControllerProvider).user;
     final isAdmin = user?.isStaffAdmin ?? false;
     final location = GoRouterState.of(context).uri.toString();
