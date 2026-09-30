@@ -1,14 +1,98 @@
+import 'dart:async';
+
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 import 'package:shreeram_crm/core/auth/auth_controller.dart';
+import 'package:shreeram_crm/core/network/api_client.dart';
 import 'package:shreeram_crm/core/theme/app_theme.dart';
 import 'package:shreeram_crm/shared/widgets/brand_logo.dart';
 
-class AppShell extends ConsumerWidget {
+class AppShell extends ConsumerStatefulWidget {
   const AppShell({super.key, required this.child});
 
   final Widget child;
+
+  @override
+  ConsumerState<AppShell> createState() => _AppShellState();
+}
+
+class _AppShellState extends ConsumerState<AppShell> {
+  Timer? _leadTimer;
+  int? _latestLeadId;
+
+  @override
+  void initState() {
+    super.initState();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _checkForNewLead();
+      _leadTimer = Timer.periodic(
+        const Duration(seconds: 60),
+        (_) => _checkForNewLead(),
+      );
+    });
+  }
+
+  @override
+  void dispose() {
+    _leadTimer?.cancel();
+    super.dispose();
+  }
+
+  Future<void> _checkForNewLead() async {
+    if (!mounted) return;
+
+    try {
+      final dio = ref.read(dioProvider);
+      final response = await dio.get(
+        '/leads',
+        queryParameters: const {
+          'per_page': 1,
+          'page': 1,
+        },
+      );
+
+      final raw = Map<String, dynamic>.from(response.data as Map);
+      final data = raw['data'] as List<dynamic>? ?? const [];
+      if (data.isEmpty) return;
+
+      final lead = Map<String, dynamic>.from(data.first as Map);
+      final id = (lead['id'] as num?)?.toInt();
+      if (id == null) return;
+
+      if (_latestLeadId == null) {
+        _latestLeadId = id;
+        return;
+      }
+
+      if (id <= _latestLeadId!) return;
+      _latestLeadId = id;
+
+      final name = '${lead['name'] ?? 'New customer'}'.trim();
+      final mobile = '${lead['mobile'] ?? ''}'.trim();
+
+      if (!mounted) return;
+
+      ScaffoldMessenger.of(context)
+        ..hideCurrentSnackBar()
+        ..showSnackBar(
+          SnackBar(
+            duration: const Duration(seconds: 12),
+            content: Text(
+              mobile.isEmpty
+                  ? 'New lead received: $name'
+                  : 'New lead received: $name · $mobile',
+            ),
+            action: SnackBarAction(
+              label: 'VIEW',
+              onPressed: () => context.go('/leads/$id'),
+            ),
+          ),
+        );
+    } catch (_) {
+      // Silent retry on the next interval. This must never interrupt CRM use.
+    }
+  }
 
   int _indexFor(String location, bool isAdmin) {
     if (location.startsWith('/leads')) return 1;
@@ -127,7 +211,7 @@ class AppShell extends ConsumerWidget {
                         ),
                       ),
                     ),
-                  Expanded(child: child),
+                  Expanded(child: widget.child),
                   if (!wide)
                     NavigationBar(
                       selectedIndex: selected,
