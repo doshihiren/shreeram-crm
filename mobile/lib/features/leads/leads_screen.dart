@@ -896,7 +896,10 @@ class _LeadCard extends StatelessWidget {
               IconButton(
                 tooltip: 'WhatsApp',
                 visualDensity: VisualDensity.compact,
-                onPressed: () => openWhatsApp(mobile),
+                onPressed: () => openWhatsApp(
+                  mobile,
+                  customerName: name,
+                ),
                 icon: const Icon(
                   Icons.chat_rounded,
                   size: 20,
