@@ -1305,7 +1305,7 @@ class _LeadCard extends StatelessWidget {
                 IconButton(
                   visualDensity: VisualDensity.compact,
                   tooltip: 'WhatsApp',
-                  onPressed: () => openWhatsApp(mobile),
+                  onPressed: () => openWhatsApp(mobile, customerName: name),
                   icon: const Icon(Icons.chat_rounded, size: 20, color: Color(0xFF25D366)),
                 ),
                 PopupMenuButton<int>(
@@ -1442,7 +1442,7 @@ class _LeadsTable extends StatelessWidget {
                               ),
                               IconButton(
                                 tooltip: 'WhatsApp',
-                                onPressed: () => openWhatsApp('${lead['mobile']}'),
+                                onPressed: () => openWhatsApp('${lead['mobile']}', customerName: '${lead['name'] ?? ''}'),
                                 icon: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
                               ),
                               IconButton(

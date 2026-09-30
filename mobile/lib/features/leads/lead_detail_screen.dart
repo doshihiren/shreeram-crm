@@ -342,7 +342,10 @@ class _LeadDetailScreenState extends ConsumerState<LeadDetailScreen> {
                                 label: const Text('Call'),
                               ),
                               FilledButton.tonalIcon(
-                                onPressed: () => openWhatsApp(mobile),
+                                onPressed: () => openWhatsApp(
+                                  mobile,
+                                  customerName: _name.text.trim().isEmpty ? '${lead['name'] ?? ''}' : _name.text.trim(),
+                                ),
                                 icon: const Icon(Icons.chat_rounded, color: Color(0xFF25D366)),
                                 label: const Text('WhatsApp'),
                               ),

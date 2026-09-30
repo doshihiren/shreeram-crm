@@ -9,14 +9,43 @@ String? whatsappNumber(String? mobile) {
   return digits;
 }
 
-Uri? whatsappUri(String? mobile) {
-  final n = whatsappNumber(mobile);
-  if (n == null) return null;
-  return Uri.parse('https://wa.me/$n');
+/// Prefilled first WhatsApp message for Shreeram Aries leads.
+String whatsappIntroMessage({String? customerName}) {
+  final name = (customerName ?? '').trim();
+  final greeting = name.isEmpty ? 'Dear Sir/Madam,' : 'Dear $name,';
+
+  return '''
+$greeting
+
+Thank you for your interest in Shreeram Aries.
+
+Brochure:
+https://shreeram-developers.com/shreeramarise/ShreeRamAriesBrochure.pdf
+
+Website:
+https://shreeram-developers.com/
+
+Location:
+https://share.google/2WnmUWvPqcofHPZD5
+
+Shreeram Aries,
+Near. SB Party Plot,
+New Shahibaug, Nana Chiloda,
+Ahmedabad
+
++91 95123 43239 | +91 95123 33239
+'''.trim();
 }
 
-Future<void> openWhatsApp(String? mobile) async {
-  final uri = whatsappUri(mobile);
+Uri? whatsappUri(String? mobile, {String? customerName}) {
+  final n = whatsappNumber(mobile);
+  if (n == null) return null;
+  final text = whatsappIntroMessage(customerName: customerName);
+  return Uri.parse('https://wa.me/$n?text=${Uri.encodeComponent(text)}');
+}
+
+Future<void> openWhatsApp(String? mobile, {String? customerName}) async {
+  final uri = whatsappUri(mobile, customerName: customerName);
   if (uri == null) return;
   await launchUrl(uri, mode: LaunchMode.externalApplication);
 }
